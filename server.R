@@ -130,15 +130,19 @@ function(input, output, session) {
     df_mth_ret_long <- df_mth_ret_long %>% group_by(asset) %>% mutate(
       ret_mean=mean(returns),
       ret_med=median(returns),
-      ret_pc25=quantile(returns, 0.25)
+      ret_pc25=quantile(returns, 0.25),
+      ret_pc05=quantile(returns, 0.05)
     )
-    df_mth_ret_long %>% ggplot(aes(x=returns))+geom_histogram(color='lightblue')+
+    df_mth_ret_long %>% ggplot(aes(x=returns))+
+      ## experimenting with calc for # of bins
+      geom_histogram(fill='lightblue', bins = max(8,round(nrow(df_mth_ret)/4)))+
       facet_grid(asset~.)+
-      geom_vline(aes(xintercept = ret_mean, group=asset), linetype='dotted', color='red')+
-      geom_vline(aes(xintercept = ret_med, group=asset), linetype='dotted', color='green')+
-      geom_vline(aes(xintercept = ret_pc25, group=asset), linetype='dotted', color='blue')+
+      geom_vline(aes(xintercept = ret_mean, group=asset), linetype='dotted', color='red', linewidth=0.8)+
+      geom_vline(aes(xintercept = ret_med, group=asset), linetype='dotted', color='green', linewidth=0.8)+
+      geom_vline(aes(xintercept = ret_pc05, group=asset), linetype='dotted', color='blue', linewidth=0.8)+
+      geom_vline(aes(xintercept = 0), linetype='solid', color='black', linewidth=1)+
       theme_bw()
-  })
+  }, height=200*(ncol(df_mth_ret)-1), width=400)
   
     ## > hist of returns ####
     ## single histogram - works but need to dynamically generate multiple
