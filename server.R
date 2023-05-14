@@ -18,26 +18,41 @@ library(dygraphs)
 library(PerformanceAnalytics)
 library(here)
 
+## functions - non-reactive
+## individual dist
+## - provide symbol to select (by number in list), list of symbols (from start), dataset of returns as data frame
+fn_ind_rtn_dist <- function(sel, symbs, data){
+  chart.Histogram(data[,sel],
+                  methods=c("add.normal","add.risk"),
+                  colorset = c('steelblue','','navyblue'),
+                  main=symbs[sel])
+}
+
 ## start server ####
 function(input, output, session) {
   ## get price data ####
   ## get price data based on inputs for use elsewhere
+  ## reactive for accessing symbol info
+  sym_list <- reactive({
+    str_split_1(input$txtSym, " ")
+  })
+  
   symData_all <- reactive({
     ## get symbols and dates from inputs
-    syms <- input$txtSym ## space-separated items
+    sym_list <- sym_list()
+    print(sym_list)
     dt_start <- input$dtRng[1]
     dt_end <- input$dtRng[2] 
     ## for testing - set symbols and dates
-    #syms <- "META AMZN AAPL NFLX GOOG"
-    #dt_start <- '2020-01-01'
+    #sym_list <- str_split_1("META AMZN GOOG", " ")
+    #dt_start <- '2022-01-01'
     #dt_end <- '2023-05-12'
-    sym_list <- str_split_1(syms, " ") ## splits the space-sep items into list
     ## empty data frame to hold results of loop
     symData_all <- NULL
     ## loop through to get data for each symbol
     for(symbs in sym_list){
       ## show list of all symbols and current symbol for reference
-      cat(paste0("syms: ", syms, " symbs: ",symbs, "\n"))
+      cat(paste0("symbs: ", symbs, "\n"))
       ## build data as loop cycles
       symData_all <- cbind(symData_all,
                            getSymbols(Symbols=symbs,
@@ -80,9 +95,10 @@ function(input, output, session) {
     ## calc only on adjusted prices - every 6th col
     symData_mth_ret <- reactive({
       data_all <- symData_all()
+      ## for testing: uncomment, skip syms stmt, run (assuming symData_all avail.)
+      #data_all <- symData_all
       ## get symbols and dates from inputs
-      syms <- input$txtSym ## space-separated items
-      sym_list <- str_split_1(syms, " ") ## split symbols into list
+      sym_list <- sym_list()
       symData_mth_ret <- NULL
       for(i in 1:length(sym_list)){
         cadj <- i*6
@@ -104,4 +120,58 @@ function(input, output, session) {
       chart.Correlation(symData)
     })
     
+  output$mr_dist_hist <- renderPlot({
+    symData_mth_ret <- symData_mth_ret()
+    df_mth_ret <- as.data.frame(symData_mth_ret)
+    df_mth_ret <- df_mth_ret %>% rownames_to_column(var='date')
+    df_mth_ret_long <- df_mth_ret %>% pivot_longer(!date, names_to="asset", values_to="returns")
+    summary_data <- df_mth_ret_long %>% group_by(asset) %>% summarize(
+      ret_mean=mean(returns))
+    df_mth_ret_long <- df_mth_ret_long %>% group_by(asset) %>% mutate(
+      ret_mean=mean(returns),
+      ret_med=median(returns),
+      ret_pc25=quantile(returns, 0.25)
+    )
+    df_mth_ret_long %>% ggplot(aes(x=returns))+geom_histogram(color='lightblue')+
+      facet_grid(asset~.)+
+      geom_vline(aes(xintercept = ret_mean, group=asset), linetype='dotted', color='red')+
+      geom_vline(aes(xintercept = ret_med, group=asset), linetype='dotted', color='green')+
+      geom_vline(aes(xintercept = ret_pc25, group=asset), linetype='dotted', color='blue')+
+      theme_bw()
+  })
+  
+    ## > hist of returns ####
+    ## single histogram - works but need to dynamically generate multiple
+    # output$mr_dist_hist <- renderPlot({
+    #   ## get symbols and dates from inputs
+    #   sym_list <- sym_list()
+    #   ## get mth return data
+    #   symData_mth_ret <- symData_mth_ret()
+    #   ## use function to produce chart
+    #   fn_ind_rtn_dist(1, sym_list, symData_mth_ret)
+    # })
+  
+  # output$mr_dist_plots <- renderUI({
+  #   sym_list <- sym_list()
+  #   symData_mth_ret <- symData_mth_ret()
+  #   ## this works with individual examples -> trick is to dynamically combine
+  #   # output$mr_dist_hist1 <- renderPlot({
+  #   #   ## use function to produce chart
+  #   #   fn_ind_rtn_dist(1, sym_list, symData_mth_ret)
+  #   # })
+  #   # output$mr_dist_hist2 <- renderPlot({
+  #   #   ## use function to produce chart
+  #   #   fn_ind_rtn_dist(2, sym_list, symData_mth_ret)
+  #   # })
+  #   #   p1 <- plotOutput('mr_dist_hist1')
+  #   #   print(p1)
+  #   #   p2 <- plotOutput('mr_dist_hist2')
+  #   #tagList(p1, p2) ## works to here - but not scalable
+  #   
+  ## tried to create loop with help from chatGPT - no luck so abandoned
+  # })
+ 
+  
+  
 } ## end server ####
+

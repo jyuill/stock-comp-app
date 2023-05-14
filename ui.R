@@ -46,7 +46,11 @@ fluidPage(
               dygraphOutput("retChart"),
               tags$h3("Return Correlations"),
               tags$p("Correlation of monthly returns over the period."),
-              plotOutput("mr_corr")
+              plotOutput("mr_corr"),
+              #tags$h3("mr_dist_plots: where?"),
+              #uiOutput(outputId="mr_dist_plots"),
+              tags$h3("Distribution of monthly returns"),
+              plotOutput(outputId="mr_dist_hist")
             )
           )
         )
