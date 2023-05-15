@@ -159,7 +159,9 @@ function(input, output, session) {
       geom_vline(aes(xintercept = ret_pc05, group=asset), linetype='dotted', color='blue', linewidth=0.8)+
       geom_vline(aes(xintercept = 0), linetype='solid', color='black', linewidth=1)+
       theme_bw()
-  }, height=200*(ncol(df_mth_ret)-1), width=400)
+  }, width=400)
+  # had 'height=200*(ncol(df_mth_ret)-1)' but apparently
+  #  renderPlot can't access the data frame :(
   
    ## trying to use the function with chart.Histogram from performance analytics
     ## single histogram - works but need to dynamically generate multiple
@@ -200,5 +202,26 @@ function(input, output, session) {
     data <- symData_mth_ret()
     chart.Drawdown(data, geometric=TRUE, legend.loc='bottomleft', plot.engine="dygraph")
   })
+  
+  # Add a JavaScript snippet to adjust the height of the div containing the dygraph
+  # - from chatGPT - doesn't appear to be doing anything
+  output$adjust_dygraph_height <- renderUI({
+    tags$head(tags$script(HTML(
+      'var plot_height = $("#plot-container").height();
+     $("#drawdown-container").css("margin-top", plot_height + 20);'
+    )))
+  })
+  
+  ## Upside/Downside Capture
+  output$updown <- renderPlot({
+    data <- symData_mth_ret()
+    chart.CaptureRatios(Ra=data[,2:ncol(data)], Rb=data[,1], colorset="dodgerblue4",
+                        main="Capture Ratio")
+  })
+  
+  
+  
+  
+  
 } ## end server ####
 
