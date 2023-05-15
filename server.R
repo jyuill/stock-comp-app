@@ -30,6 +30,7 @@ fn_ind_rtn_dist <- function(sel, symbs, data){
 
 ## start server ####
 function(input, output, session) {
+  ## PRICES ####
   ## get price data ####
   ## get price data based on inputs for use elsewhere
   ## reactive for accessing symbol info
@@ -88,7 +89,9 @@ function(input, output, session) {
       chart.Correlation(Ad(symData))
     })
     
-    ## returns ####
+  
+  
+    ## RETURNS ####
     ## > calc returns ####
     ## monthly returns
     ## potentially simpler way to calc monthly returns
@@ -120,6 +123,7 @@ function(input, output, session) {
       chart.Correlation(symData)
     })
     
+  ## > hist of returns ####
   output$mr_dist_hist <- renderPlot({
     symData_mth_ret <- symData_mth_ret()
     df_mth_ret <- as.data.frame(symData_mth_ret)
@@ -133,6 +137,19 @@ function(input, output, session) {
       ret_pc25=quantile(returns, 0.25),
       ret_pc05=quantile(returns, 0.05)
     )
+    ## thinking of breaking the set up for side-by-side charts
+    ## abandoned just because of priorities
+    assets <- unique(df_mth_ret_long$asset) ## get asset names
+    n_assets <- length(assets) ## get # of assets and next line count first group
+    n_assets_1 <- round(length(assets)/2)
+    ## first dataset split
+    df_mth_ret_long_a1 <- df_mth_ret_long %>% 
+      filter(asset %in% assets[1:n_assets_1])
+    ## remaining dataset split
+    df_mth_ret_long_a2 <- df_mth_ret_long %>% 
+      filter(asset %in% assets[n_assets-n_assets_1:n_assets])
+    ## end experiment in splitting dataset 
+    
     df_mth_ret_long %>% ggplot(aes(x=returns))+
       ## experimenting with calc for # of bins
       geom_histogram(fill='lightblue', bins = max(8,round(nrow(df_mth_ret)/4)))+
@@ -144,7 +161,7 @@ function(input, output, session) {
       theme_bw()
   }, height=200*(ncol(df_mth_ret)-1), width=400)
   
-    ## > hist of returns ####
+   ## trying to use the function with chart.Histogram from performance analytics
     ## single histogram - works but need to dynamically generate multiple
     # output$mr_dist_hist <- renderPlot({
     #   ## get symbols and dates from inputs
@@ -174,8 +191,14 @@ function(input, output, session) {
   #   
   ## tried to create loop with help from chatGPT - no luck so abandoned
   # })
- 
   
-  
+  ## drawdowns ####
+  # Shows how resilient investment is during negative return situations.
+  ## - downward price movement relative to a high.
+  ## plot.engine options: ggplot2, plotly, dygraph, googlevis, default
+  output$drawdown <- renderDygraph({
+    data <- symData_mth_ret()
+    chart.Drawdown(data, geometric=TRUE, legend.loc='bottomleft', plot.engine="dygraph")
+  })
 } ## end server ####
 

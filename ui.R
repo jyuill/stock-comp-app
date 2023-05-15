@@ -14,7 +14,8 @@ library(PerformanceAnalytics)
 
 # Define UI for application that draws a histogram
 fluidPage(
-
+    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
+  
     # title ####
     titlePanel("Stock Price Comparisons"),
 
@@ -50,7 +51,9 @@ fluidPage(
               #tags$h3("mr_dist_plots: where?"),
               #uiOutput(outputId="mr_dist_plots"),
               tags$h3("Distribution of monthly returns"),
-              plotOutput(outputId="mr_dist_hist")
+              plotOutput(outputId="mr_dist_hist"),
+              tags$h3("Drawdowns"),
+              dygraphOutput(outputId='drawdown')
             )
           )
         )
