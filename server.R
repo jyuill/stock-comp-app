@@ -32,15 +32,18 @@ fn_ind_rtn_dist <- function(sel, symbs, data){
 
 ## start server ####
 function(input, output, session) {
-  ## PRICES ####
-  ## get price data ####
-  ## get price data based on inputs for use elsewhere
+  
+  ## Symbols ####
+  ## get symbols for use as inputs
   ## reactive for accessing symbol info
   sym_list <- reactive({
+    req(input$txtSym)
     str_split_1(input$txtSym, " ")
   })
-  
+  ## PRICES ####
+  ## get price data ####
   symData_all <- reactive({
+    #req(input$txtSym)
     ## get symbols and dates from inputs
     sym_list <- sym_list()
     print(sym_list)
@@ -242,7 +245,7 @@ function(input, output, session) {
       theme_bw()
     
     ggplotly(mth_hist, tooltip='text', 
-             scales=list(y=list(formatter="percent", accuracy=0.1))) %>% layout(width=600)
+             scales=list(y=list(formatter="percent", accuracy=0.1)), width=600) #%>% layout(width=600)
   }) # width=400 taken out for plotly
   
   

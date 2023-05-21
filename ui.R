@@ -36,7 +36,7 @@ fluidPage(
     sidebarLayout(
       ## sidebar panel ####
         sidebarPanel(
-            textInput(inputId='txtSym', label="Enter Symbol (sep with single space, no commas)", value="^GSPC META AMZN AAPL NFLX GOOG"),
+            textInput(inputId='txtSym', label="Enter Symbol (sep with single space, no commas)", value="^GSPC AAPL GOOG KO"),
             tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup"),
             dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ),
             checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE)
@@ -56,7 +56,7 @@ fluidPage(
             ), ## end Prices panel ####
             ## Mth Returns ####
             tabPanel(title='Mthly Returns',
-              tags$p("Prices may be interesting, but RETURNS are the game."),
+              tags$p("Prices may be interesting, but RETURNS are the game. All data based on ADJUSTED returns."),
               tags$h3("Monthly Returns"),
               tags$p("Returns based on price at end of mth vs beginning."),
               dygraphOutput("retChart"),
@@ -70,6 +70,7 @@ fluidPage(
               tags$h3("Distribution of monthly returns"),
               #plotOutput(outputId="mr_dist_hist"),
               plotlyOutput(outputId="mr_dist_hist"),
+              tags$p("Red = mean, Green = median, Blue = 5th percentile"),
               tags$h3("Drawdowns"),
               dygraphOutput(outputId='drawdown'),
               tags$h3("Upside/downside capture"),
@@ -78,7 +79,7 @@ fluidPage(
               plotOutput(outputId='updown'),
               tags$p("Couple things to note:",
                 tags$ul(
-                  tags$li("the benchmark will be situated where the x and y axes cross at 1. This is because it captures 100% of the upside and downside of itself."),
+                  tags$li("the benchmark (first item in list) will be situated where the x and y axes cross at 1. This is because it captures 100% of the upside and downside of itself."),
                   tags$li("other assets are then evaluated by how far and what direction they sit on both x and y axis from the benchmark."),
                   tags$li("downside that is lower than 1 means the asset tends to not to react with as much losses on the downside as the benchmark."),
                   tags$li("upside greater than 1 means the asset tends to see greater gains on the upside than the benchmark.")
