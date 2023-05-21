@@ -89,6 +89,12 @@ function(input, output, session) {
         dygraph(Ad(symData_mmn)) %>% dyRangeSelector()
       }
     })
+    ## price summary ####
+    ## summarize: Hi, Low, Current (latest), current as % of range
+    ## - probably need table because of range in data
+    ## symData <- symData_all()
+    #max(symData_all$META.Adjusted)
+    #min(symData_all[,6])
     ## price correlations ####
     ## correlation - adjusted prices
     output$pa_corr <- renderPlot({

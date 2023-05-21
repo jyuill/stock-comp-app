@@ -77,7 +77,7 @@ fluidPage(
               tags$p("Shows the relative percentage of upside and downside captured 
               by an asset relative to a benchmark."),
               plotOutput(outputId='updown'),
-              tags$p("Couple things to note:",
+              tags$p("Notes:",
                 tags$ul(
                   tags$li("the benchmark (first item in list) will be situated where the x and y axes cross at 1. This is because it captures 100% of the upside and downside of itself."),
                   tags$li("other assets are then evaluated by how far and what direction they sit on both x and y axis from the benchmark."),
