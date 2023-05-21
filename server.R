@@ -17,6 +17,7 @@ library(bslib)
 library(dygraphs)
 library(PerformanceAnalytics)
 library(here)
+library(gt)
 
 ## functions - non-reactive
 ## individual dist
@@ -62,6 +63,7 @@ function(input, output, session) {
     ## return combined results of each loop (all symbols)
     symData_all
   })
+  
   ## price chart ####
   ## price chart - show data collected above to compare symbols
     output$priceChart <- renderDygraph({
@@ -89,19 +91,19 @@ function(input, output, session) {
       chart.Correlation(Ad(symData))
     })
     
-  
-  
     ## RETURNS ####
+    ## Mthly returns ####
     ## > calc returns ####
-    ## monthly returns
-    ## potentially simpler way to calc monthly returns
+    ## monthly returns - loop through each symbol
     ## calc only on adjusted prices - every 6th col
     symData_mth_ret <- reactive({
       data_all <- symData_all()
-      ## for testing: uncomment, skip syms stmt, run (assuming symData_all avail.)
-      #data_all <- symData_all
       ## get symbols and dates from inputs
       sym_list <- sym_list()
+      ## for testing: uncomment, skip syms stmt, run (assuming symData_all avail.)
+      #data_all <- symData_all
+      #sym_list <- sym_list
+      ## end test vars
       symData_mth_ret <- NULL
       for(i in 1:length(sym_list)){
         cadj <- i*6
@@ -112,6 +114,56 @@ function(input, output, session) {
       symData_mth_ret
     })
  
+  ## > calc summary of overall returns ####
+  mth_ret_summary <- reactive({
+    ## create table with stats in cols and assets in rows
+    ## - cumulative returns, avg mthly, median mthly, 0.05 quantile
+    ## get return data
+    symData_mth_ret <- symData_mth_ret()
+    
+    ## cumulative return for period
+    df_mth_ret_smry <- data.frame()
+    ## calculates all at once - don't need loop
+    df_ret_cum <- data.frame(Return.cumulative(symData_mth_ret))
+    df_ret_cum_col <- df_ret_cum %>% pivot_longer(everything(), names_to='asset', values_to='cumulative_rtn')
+    df_mth_ret_smry <- bind_rows(df_mth_ret_smry, df_ret_cum_col)
+    
+    ## get ave mthly ret
+    ## need to loop through symData_mth_ret to calc for each col
+    ## add cols for new metric to existing df 
+    df_ret_stats <- data.frame()
+    for(s in 1:ncol(symData_mth_ret)){
+      ret_stat <- mean(symData_mth_ret[s])
+      df_ret_stat <- data.frame(asset=colnames(symData_mth_ret)[s], mean=ret_stat)
+      df_ret_stats <- bind_rows(df_ret_stats, df_ret_stat)
+    }
+    df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
+    ## median - same as above and join
+    df_ret_stats <- data.frame()
+    for(s in 1:ncol(symData_mth_ret)){
+      ret_stat <- median(symData_mth_ret[s])
+      df_ret_stat <- data.frame(asset=colnames(symData_mth_ret)[s], median=ret_stat)
+      df_ret_stats <- bind_rows(df_ret_stats, df_ret_stat)
+    }
+    df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
+    ## .05 quantile - same as above and join
+    df_ret_stats <- data.frame()
+    for(s in 1:ncol(symData_mth_ret)){
+      ret_stat <- quantile(symData_mth_ret[s], 0.05)
+      df_ret_stat <- data.frame(asset=colnames(symData_mth_ret)[s], qtile_05=ret_stat)
+      df_ret_stats <- bind_rows(df_ret_stats, df_ret_stat)
+    }
+    df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
+    
+  })
+  ## test table
+  tbl <- gt(df_mth_ret_smry)
+  tbl %>% fmt_percent(
+    columns=everything(),
+    decimals=1,
+    use_seps = FALSE
+  )
+  
     ## > chart returns ####
     output$retChart <- renderDygraph({
       symData <- symData_mth_ret()
@@ -123,40 +175,50 @@ function(input, output, session) {
       chart.Correlation(symData)
     })
     
-  ## > hist of returns ####
-  output$mr_dist_hist <- renderPlot({
+  ## > mth rtn long with smry ####
+  df_mth_ret_long <- reactive({
     symData_mth_ret <- symData_mth_ret()
-    df_mth_ret <- as.data.frame(symData_mth_ret)
+    df_mth_ret <- data.frame(symData_mth_ret)
     df_mth_ret <- df_mth_ret %>% rownames_to_column(var='date')
     df_mth_ret_long <- df_mth_ret %>% pivot_longer(!date, names_to="asset", values_to="returns")
-    summary_data <- df_mth_ret_long %>% group_by(asset) %>% summarize(
-      ret_mean=mean(returns))
+    ## uses mutate instead of summarize: data is left ungrouped and summary stats repeated
+    ## maintains single df for histogram - use group=asset to display individual summary stats
     df_mth_ret_long <- df_mth_ret_long %>% group_by(asset) %>% mutate(
       ret_mean=mean(returns),
       ret_med=median(returns),
-      ret_pc25=quantile(returns, 0.25),
-      ret_pc05=quantile(returns, 0.05)
+      ## what % are you ok with losing in a mth?
+      ret_pc25=quantile(returns, 0.25), ## 25% of time returns this low
+      ret_pc20=quantile(returns, 0.1), ## 10% of time returns this low
+      ret_pc05=quantile(returns, 0.05) ## 5% of time returns this low
     )
+    df_mth_ret_long
+  })
+  
+  ## > hist of returns ####
+  output$mr_dist_hist <- renderPlot({
+    ## get return data in long format for hist from smry function
+    df_mth_ret_long <- df_mth_ret_long()
+    
     ## thinking of breaking the set up for side-by-side charts
     ## abandoned just because of priorities
-    assets <- unique(df_mth_ret_long$asset) ## get asset names
-    n_assets <- length(assets) ## get # of assets and next line count first group
-    n_assets_1 <- round(length(assets)/2)
+    #assets <- unique(df_mth_ret_long$asset) ## get asset names
+    #n_assets <- length(assets) ## get # of assets and next line count first group
+    #n_assets_1 <- round(length(assets)/2)
     ## first dataset split
-    df_mth_ret_long_a1 <- df_mth_ret_long %>% 
-      filter(asset %in% assets[1:n_assets_1])
+    #df_mth_ret_long_a1 <- df_mth_ret_long %>% 
+    #  filter(asset %in% assets[1:n_assets_1])
     ## remaining dataset split
-    df_mth_ret_long_a2 <- df_mth_ret_long %>% 
-      filter(asset %in% assets[n_assets-n_assets_1:n_assets])
+    #df_mth_ret_long_a2 <- df_mth_ret_long %>% 
+    #  filter(asset %in% assets[n_assets-n_assets_1:n_assets])
     ## end experiment in splitting dataset 
     
     df_mth_ret_long %>% ggplot(aes(x=returns))+
       ## experimenting with calc for # of bins
       geom_histogram(fill='lightblue', bins = max(8,round(nrow(df_mth_ret)/4)))+
       facet_grid(asset~.)+
-      geom_vline(aes(xintercept = ret_mean, group=asset), linetype='dotted', color='red', linewidth=0.8)+
-      geom_vline(aes(xintercept = ret_med, group=asset), linetype='dotted', color='green', linewidth=0.8)+
-      geom_vline(aes(xintercept = ret_pc05, group=asset), linetype='dotted', color='blue', linewidth=0.8)+
+      geom_vline(aes(xintercept = ret_mean, group=asset), linetype='dotted', color='red', linewidth=1)+
+      geom_vline(aes(xintercept = ret_med, group=asset), linetype='dotted', color='green', linewidth=1)+
+      geom_vline(aes(xintercept = ret_pc05, group=asset), linetype='dotted', color='blue', linewidth=1)+
       geom_vline(aes(xintercept = 0), linetype='solid', color='black', linewidth=1)+
       theme_bw()
   }, width=400)
@@ -194,7 +256,7 @@ function(input, output, session) {
   ## tried to create loop with help from chatGPT - no luck so abandoned
   # })
   
-  ## drawdowns ####
+  ## > drawdowns ####
   # Shows how resilient investment is during negative return situations.
   ## - downward price movement relative to a high.
   ## plot.engine options: ggplot2, plotly, dygraph, googlevis, default
@@ -219,8 +281,34 @@ function(input, output, session) {
                         main="Capture Ratio")
   })
   
+## Annual returns ####  
   
+  symData_yr_ret <- reactive({
+    data_all <- symData_all()
+    ## for testing: uncomment, skip syms stmt, run (assuming symData_all avail.)
+    #data_all <- symData_all
+    ## get symbols and dates from inputs
+    sym_list <- sym_list()
+    symData_yr_ret <- NULL
+    for(i in 1:length(sym_list)){
+      cadj <- i*6
+      sym_yr <- annualReturn(data_all[,cadj])
+      colnames(sym_yr) <- sym_list[i]
+      symData_yr_ret <- cbind(symData_yr_ret, sym_yr)
+    }
+    symData_yr_ret
+  })
   
+  ## > chart returns ####
+  output$retChart_yr <- renderDygraph({
+    symData <- symData_yr_ret()
+    dygraph(symData) %>% dyRangeSelector()
+  })
+  ## > correl returns ####
+  output$yr_corr <- renderPlot({
+    symData <- symData_yr_ret()
+    chart.Correlation(symData)
+  })
   
   
 } ## end server ####

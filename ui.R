@@ -36,7 +36,7 @@ fluidPage(
         sidebarPanel(
             textInput(inputId='txtSym', label="Enter Symbol (sep with single space, no commas)", value="^GSPC META AMZN AAPL NFLX GOOG"),
             tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup"),
-            dateRangeInput(inputId='dtRng', label='Date Range', start='2022-01-01', end='2022-12-31' ),
+            dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ),
             checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE)
         ), ## end sidebar panel ####
         ## main panel ####
@@ -52,12 +52,14 @@ fluidPage(
               tags$h3("Price Correlations"),
               plotOutput("pa_corr")
             ), ## end Prices panel ####
-            ## Returns ####
+            ## Mth Returns ####
             tabPanel(title='Mthly Returns',
-              tags$h2("Returns: The Main Thing"),
               tags$p("Prices may be interesting, but RETURNS are the game."),
               tags$h3("Monthly Returns"),
+              tags$p("Returns based on price at end of mth vs beginning."),
               dygraphOutput("retChart"),
+              tags$h3("Summary"),
+              
               tags$h3("Return Correlations"),
               tags$p("Correlation of monthly returns over the period."),
               plotOutput("mr_corr"),
@@ -79,12 +81,21 @@ fluidPage(
                   tags$li("upside greater than 1 means the asset tends to see greater gains on the upside than the benchmark.")
                   )
                 )
-          ), ## end Mthly Returns panel ####
+          ), ## > end Mthly Returns panel ####
+          ## Yr returns ####
+          tabPanel(title='Annual Returns',
+                   tags$h2("Annual Returns"),
+                   tags$h3("Annual Returns"),
+                   dygraphOutput("retChart_yr"),
+                   tags$h3("Return Correlations"),
+                   tags$p("Correlation of monthly returns over the period."),
+                   plotOutput("yr_corr"),
+                   ), ## > end 1 yr returns ####
           ## Rolling Ret ####
           tabPanel(title='Rolling Returns',
                    tags$h2("Rolling Returns Analysis"),
                    tags$p("Coming soon!")
-                   ) ## end Rolling Ret ####
+                   ) ## > end Rolling Ret ####
         ) ## end tabset panel ####
     ) ## end main panel ####
 ) ## end sidebar layout
