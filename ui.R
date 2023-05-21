@@ -10,6 +10,8 @@ library(shinythemes)
 library(bslib)
 library(dygraphs)
 library(PerformanceAnalytics)
+library(gt)
+library(plotly)
 
 
 # Define UI for application that draws a histogram
@@ -59,14 +61,15 @@ fluidPage(
               tags$p("Returns based on price at end of mth vs beginning."),
               dygraphOutput("retChart"),
               tags$h3("Summary"),
-              
+              gt_output(outputId='mth_smry_tbl'),
               tags$h3("Return Correlations"),
               tags$p("Correlation of monthly returns over the period."),
               plotOutput("mr_corr"),
               #tags$h3("mr_dist_plots: where?"),
               #uiOutput(outputId="mr_dist_plots"),
               tags$h3("Distribution of monthly returns"),
-              plotOutput(outputId="mr_dist_hist"),
+              #plotOutput(outputId="mr_dist_hist"),
+              plotlyOutput(outputId="mr_dist_hist"),
               tags$h3("Drawdowns"),
               dygraphOutput(outputId='drawdown'),
               tags$h3("Upside/downside capture"),

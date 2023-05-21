@@ -18,6 +18,7 @@ library(dygraphs)
 library(PerformanceAnalytics)
 library(here)
 library(gt)
+library(plotly)
 
 ## functions - non-reactive
 ## individual dist
@@ -46,7 +47,7 @@ function(input, output, session) {
     dt_start <- input$dtRng[1]
     dt_end <- input$dtRng[2] 
     ## for testing - set symbols and dates
-    #sym_list <- str_split_1("META AMZN GOOG", " ")
+    #sym_list <- str_split_1("META AMZN AAPL GOOG", " ")
     #dt_start <- '2022-01-01'
     #dt_end <- '2023-05-12'
     ## empty data frame to hold results of loop
@@ -60,6 +61,9 @@ function(input, output, session) {
                            getSymbols(Symbols=symbs,
                                       from=dt_start, to=dt_end, auto.assign=FALSE, src='yahoo'))
     }
+    ## show total returns for ref
+    cat("total return of first item:", (last(symData_all[,6])[[1]] - first(symData_all[,6])[[1]])/first(symData_all[,6])[[1]],"\n")
+    
     ## return combined results of each loop (all symbols)
     symData_all
   })
@@ -111,15 +115,19 @@ function(input, output, session) {
         colnames(sym_mr) <- sym_list[i]
         symData_mth_ret <- cbind(symData_mth_ret, sym_mr)
       }
+      cat("means:", colMeans(symData_mth_ret),"\n")
+      cat("medians",apply(symData_mth_ret, MARGIN=2, FUN=median),"\n")
       symData_mth_ret
     })
  
   ## > calc summary of overall returns ####
-  mth_ret_summary <- reactive({
+  mth_ret_smry <- reactive({
     ## create table with stats in cols and assets in rows
     ## - cumulative returns, avg mthly, median mthly, 0.05 quantile
     ## get return data
     symData_mth_ret <- symData_mth_ret()
+    ## test - comment out if not testing
+    symData_mth_ret <- symData_mth_ret
     
     ## cumulative return for period
     df_mth_ret_smry <- data.frame()
@@ -131,39 +139,41 @@ function(input, output, session) {
     ## get ave mthly ret
     ## need to loop through symData_mth_ret to calc for each col
     ## add cols for new metric to existing df 
-    df_ret_stats <- data.frame()
-    for(s in 1:ncol(symData_mth_ret)){
-      ret_stat <- mean(symData_mth_ret[s])
-      df_ret_stat <- data.frame(asset=colnames(symData_mth_ret)[s], mean=ret_stat)
-      df_ret_stats <- bind_rows(df_ret_stats, df_ret_stat)
-    }
+    df_ret_stats <- data.frame(colMeans(symData_mth_ret)) %>% rownames_to_column('asset')
+    colnames(df_ret_stats)[2] <- 'mean_rtn' 
     df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
+    
     ## median - same as above and join
-    df_ret_stats <- data.frame()
-    for(s in 1:ncol(symData_mth_ret)){
-      ret_stat <- median(symData_mth_ret[s])
-      df_ret_stat <- data.frame(asset=colnames(symData_mth_ret)[s], median=ret_stat)
-      df_ret_stats <- bind_rows(df_ret_stats, df_ret_stat)
-    }
+    df_ret_stats <- data.frame(apply(symData_mth_ret, MARGIN=2, FUN=median)) %>% rownames_to_column('asset')
+    colnames(df_ret_stats)[2] <- 'median_rtn' 
     df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
+    
     ## .05 quantile - same as above and join
-    df_ret_stats <- data.frame()
-    for(s in 1:ncol(symData_mth_ret)){
-      ret_stat <- quantile(symData_mth_ret[s], 0.05)
-      df_ret_stat <- data.frame(asset=colnames(symData_mth_ret)[s], qtile_05=ret_stat)
-      df_ret_stats <- bind_rows(df_ret_stats, df_ret_stat)
-    }
+    # Calculate the 5th percentile for each stock
+    df_ret_stats <- data.frame(apply(symData_mth_ret, 2, function(x) quantile(x, probs = 0.05))) %>% rownames_to_column(('asset'))
+    colnames(df_ret_stats)[2] <- 'percentile_5'
     df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
+    
+    return(df_mth_ret_smry)
     
   })
   ## test table
-  tbl <- gt(df_mth_ret_smry)
-  tbl %>% fmt_percent(
-    columns=everything(),
-    decimals=1,
-    use_seps = FALSE
-  )
-  
+  #tbl <- gt(df_mth_ret_smry)
+  #tbl %>% fmt_percent(
+  #  columns=everything(),
+  #  decimals=1,
+  #  use_seps = FALSE
+  #)
+  output$mth_smry_tbl <- render_gt({
+    mth_ret_smry <- mth_ret_smry()
+    tbl <- gt(mth_ret_smry)
+    tbl %>% fmt_percent(
+      columns=everything(),
+      decimals=1,
+      use_seps = FALSE
+    )
+  })
+    
     ## > chart returns ####
     output$retChart <- renderDygraph({
       symData <- symData_mth_ret()
@@ -177,9 +187,11 @@ function(input, output, session) {
     
   ## > mth rtn long with smry ####
   df_mth_ret_long <- reactive({
+    cat("get mthly returns to convert to long df \n")
     symData_mth_ret <- symData_mth_ret()
+    cat("convert to data frame \n")
     df_mth_ret <- data.frame(symData_mth_ret)
-    df_mth_ret <- df_mth_ret %>% rownames_to_column(var='date')
+    df_mth_ret <- df_mth_ret %>% rownames_to_column("date")
     df_mth_ret_long <- df_mth_ret %>% pivot_longer(!date, names_to="asset", values_to="returns")
     ## uses mutate instead of summarize: data is left ungrouped and summary stats repeated
     ## maintains single df for histogram - use group=asset to display individual summary stats
@@ -191,11 +203,13 @@ function(input, output, session) {
       ret_pc20=quantile(returns, 0.1), ## 10% of time returns this low
       ret_pc05=quantile(returns, 0.05) ## 5% of time returns this low
     )
+    cat(str(df_mth_ret_long),"\n")
     df_mth_ret_long
   })
   
   ## > hist of returns ####
-  output$mr_dist_hist <- renderPlot({
+  output$mr_dist_hist <- renderPlotly({
+    cat("get histogram \n")
     ## get return data in long format for hist from smry function
     df_mth_ret_long <- df_mth_ret_long()
     
@@ -212,16 +226,26 @@ function(input, output, session) {
     #  filter(asset %in% assets[n_assets-n_assets_1:n_assets])
     ## end experiment in splitting dataset 
     
-    df_mth_ret_long %>% ggplot(aes(x=returns))+
+    ## calc for number of bins
+    assets <- unique(df_mth_ret_long$asset)
+    avg_rows <- nrow(df_mth_ret_long)/length(assets)
+    
+    mth_hist <- df_mth_ret_long %>% ggplot(aes(x=returns))+
       ## experimenting with calc for # of bins
-      geom_histogram(fill='lightblue', bins = max(8,round(nrow(df_mth_ret)/4)))+
+      geom_histogram(fill='lightblue', bins = max(8,round(avg_rows/4)))+
+      scale_x_continuous(labels=percent_format())+
       facet_grid(asset~.)+
       geom_vline(aes(xintercept = ret_mean, group=asset), linetype='dotted', color='red', linewidth=1)+
       geom_vline(aes(xintercept = ret_med, group=asset), linetype='dotted', color='green', linewidth=1)+
       geom_vline(aes(xintercept = ret_pc05, group=asset), linetype='dotted', color='blue', linewidth=1)+
       geom_vline(aes(xintercept = 0), linetype='solid', color='black', linewidth=1)+
       theme_bw()
-  }, width=400)
+    
+    ggplotly(mth_hist, tooltip='text', 
+             scales=list(y=list(formatter="percent", accuracy=0.1))) %>% layout(width=600)
+  }) # width=400 taken out for plotly
+  
+  
   # had 'height=200*(ncol(df_mth_ret)-1)' but apparently
   #  renderPlot can't access the data frame :(
   
