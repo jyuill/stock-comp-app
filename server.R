@@ -32,6 +32,37 @@ fn_ind_rtn_dist <- function(sel, symbs, data){
                   main=symbs[sel])
 }
 
+fn_rtn_smry <- function(data){
+  ## set var from data, due to legacy references in code below
+  symData_ret <- data
+  ## cumulative return for period
+  df_ret_smry <- data.frame()
+  ## calculates all at once - don't need loop
+  df_ret_cum <- data.frame(Return.cumulative(symData_ret))
+  df_ret_cum_col <- df_ret_cum %>% pivot_longer(everything(), names_to='asset', values_to='cumulative_rtn')
+  df_ret_smry <- bind_rows(df_ret_smry, df_ret_cum_col)
+  
+  ## get ave mthly ret
+  ## need to go through symData_ret by col to calc for each col
+  ## add cols for new metric to existing df 
+  df_ret_stats <- data.frame(colMeans(symData_ret, na.rm=TRUE)) %>% rownames_to_column('asset')
+  colnames(df_ret_stats)[2] <- 'mean_rtn' 
+  df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
+  
+  ## median - same as above and join
+  df_ret_stats <- data.frame(apply(symData_ret, MARGIN=2, FUN=median, na.rm=TRUE)) %>% rownames_to_column('asset')
+  colnames(df_ret_stats)[2] <- 'median_rtn' 
+  df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
+  
+  ## .05 quantile - same as above and join
+  # Calculate the 5th percentile for each stock
+  df_ret_stats <- data.frame(apply(symData_ret, 2, function(x) quantile(x, probs = 0.05, na.rm=TRUE))) %>% rownames_to_column(('asset'))
+  colnames(df_ret_stats)[2] <- 'percentile_5'
+  df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
+  
+  return(df_ret_smry)
+}
+
 ## start server ####
 function(input, output, session) {
   
@@ -52,9 +83,9 @@ function(input, output, session) {
     dt_start <- input$dtRng[1]
     dt_end <- input$dtRng[2] 
     ## for testing - set symbols and dates
-    # sym_list <- str_split_1("META AMZN AAPL GOOG", " ")
-    # dt_start <- '2022-01-01'
-    # dt_end <- '2023-05-12'
+    #sym_list <- str_split_1("META AMZN TSLA GOOG", " ")
+    #dt_start <- '2020-01-01'
+    #dt_end <- '2023-05-12'
     ## empty data frame to hold results of loop
     symData_all <- NULL
     ## loop through to get data for each symbol
@@ -80,7 +111,14 @@ function(input, output, session) {
       ## > raw or normalized ####
       if(input$mmnorm==FALSE){
         ## actual or normalized - depending on checkbox
-        dygraph(Ad(symData)) %>% dyRangeSelector()
+        dygraph(Ad(symData)) %>% dyRangeSelector() %>%
+          dyAxis("y", axisLabelFormatter = JS("function(d) { 
+            if (d >= 1000) {
+              return '$' + (d / 1000).toLocaleString('en-US') + 'k';
+            } else {
+              return '$' + d.toFixed(0);
+            }
+          }"))
       } else {
         ## calc min-max normalized for better comp
         symData <- na.omit(symData)
@@ -131,6 +169,20 @@ function(input, output, session) {
       symData_mth_ret
     })
  
+    ## > chart returns ####
+    output$retChart <- renderDygraph({
+      symData <- symData_mth_ret()
+      dygraph(symData) %>% dyRangeSelector() %>%
+        dyAxis("y", axisLabelFormatter = JS("function(d) { return (d * 100).toFixed(0) + '%'; }"))
+    })
+    
+  ## > cum. retn chart over the period ####  
+  output$cumChart <- renderDygraph({
+    symData_mth_ret <- symData_mth_ret()
+    chart.CumReturns(symData_mth_ret, wealth.index=TRUE, legend.loc='topleft', plot.engine='dygraph') %>%
+      dyAxis("y", axisLabelFormatter = JS("function(d) { return '$' + d.toFixed(2); }"))
+  })  
+  
   ## > calc summary of overall returns ####
   mth_ret_smry <- reactive({
     ## create table with stats in cols and assets in rows
@@ -139,35 +191,11 @@ function(input, output, session) {
     symData_mth_ret <- symData_mth_ret()
     ## for testing: start here
     symData_mth_ret <- symData_mth_ret
-    
-    ## cumulative return for period
-    df_mth_ret_smry <- data.frame()
-    ## calculates all at once - don't need loop
-    df_ret_cum <- data.frame(Return.cumulative(symData_mth_ret))
-    df_ret_cum_col <- df_ret_cum %>% pivot_longer(everything(), names_to='asset', values_to='cumulative_rtn')
-    df_mth_ret_smry <- bind_rows(df_mth_ret_smry, df_ret_cum_col)
-    
-    ## get ave mthly ret
-    ## need to loop through symData_mth_ret to calc for each col
-    ## add cols for new metric to existing df 
-    df_ret_stats <- data.frame(colMeans(symData_mth_ret)) %>% rownames_to_column('asset')
-    colnames(df_ret_stats)[2] <- 'mean_rtn' 
-    df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
-    
-    ## median - same as above and join
-    df_ret_stats <- data.frame(apply(symData_mth_ret, MARGIN=2, FUN=median)) %>% rownames_to_column('asset')
-    colnames(df_ret_stats)[2] <- 'median_rtn' 
-    df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
-    
-    ## .05 quantile - same as above and join
-    # Calculate the 5th percentile for each stock
-    df_ret_stats <- data.frame(apply(symData_mth_ret, 2, function(x) quantile(x, probs = 0.05))) %>% rownames_to_column(('asset'))
-    colnames(df_ret_stats)[2] <- 'percentile_5'
-    df_mth_ret_smry <- left_join(df_mth_ret_smry, df_ret_stats, by="asset")
-    
+    ## use function to process data
+    df_mth_ret_smry <- fn_rtn_smry(symData_mth_ret)
     return(df_mth_ret_smry)
-    
   })
+  
   ## summary table - using gt
   output$mth_smry_tbl <- render_gt({
     mth_ret_smry <- mth_ret_smry()
@@ -179,18 +207,13 @@ function(input, output, session) {
     ) |>
       ## edit col names for readability
       cols_label(
-        cumulative_rtn = "cumulative",
+        cumulative_rtn = "total rtn",
         mean_rtn = "mthly ave",
         median_rtn = "mthly median",
         percentile_5 = "mthly at risk*"
       )
-  })
-    
-    ## > chart returns ####
-    output$retChart <- renderDygraph({
-      symData <- symData_mth_ret()
-        dygraph(symData) %>% dyRangeSelector()
     })
+    
     ## > correl returns ####
     output$mr_corr <- renderPlot({
       symData <- symData_mth_ret()
@@ -338,42 +361,13 @@ function(input, output, session) {
   
   ## > calc summary of overall returns ####
   yr_ret_smry <- reactive({
-    ## create table with stats in cols and assets in rows
-    ## - cumulative returns, avg mthly, median mthly, 0.05 quantile
     ## get return data
     symData_ret <- symData_yr_ret()
     ## for testing
     #symData_ret <- symData_yr_ret
     
-    ## cumulative return for period
-    df_ret_smry <- data.frame()
-    ## calculates all at once - don't need loop
-    df_ret_cum <- data.frame(Return.cumulative(symData_ret))
-    df_ret_cum_col <- df_ret_cum %>% pivot_longer(everything(), names_to='asset', values_to='cumulative_rtn')
-    df_ret_smry <- bind_rows(df_ret_smry, df_ret_cum_col)
-    
-    ## get ave ret
-    ## need to loop through symData_ret to calc for each col
-    ## add cols for new metric to existing df 
-    df_ret_stats <- data.frame(colMeans(symData_ret)) %>% rownames_to_column('asset')
-    colnames(df_ret_stats)[2] <- 'mean_rtn' 
-    df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
-    
-    ## median - same as above and join
-    df_ret_stats <- data.frame(apply(symData_ret, MARGIN=2, FUN=median)) %>% rownames_to_column('asset')
-    colnames(df_ret_stats)[2] <- 'median_rtn' 
-    df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
-    
-    ## .05 quantile - same as above and join
-    # Calculate the 5th percentile for each stock
-    df_ret_stats <- data.frame(apply(symData_ret, 2, function(x) quantile(x, probs = 0.05))) %>% rownames_to_column(('asset'))
-    colnames(df_ret_stats)[2] <- 'percentile_5'
-    df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
-    
-    ## set to period return to avoid confusion
-    df_yr_ret_smry <- df_ret_smry
+    df_yr_ret_smry <- fn_rtn_smry(symData_ret)
     return(df_yr_ret_smry)
-    
   })
   ## summary table - using gt
   output$yr_smry_tbl <- render_gt({
@@ -386,7 +380,7 @@ function(input, output, session) {
     ) |>
       ## edit col names for readability
       cols_label(
-        cumulative_rtn = "cumulative",
+        cumulative_rtn = "total rtn",
         mean_rtn = "annual ave",
         median_rtn = "annual median",
         percentile_5 = "annual at risk*"
