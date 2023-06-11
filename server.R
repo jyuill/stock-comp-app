@@ -19,7 +19,9 @@ library(PerformanceAnalytics)
 library(here)
 library(gt)
 library(plotly)
+library(htmlwidgets)
 
+theme_set(theme_bw())
 ## functions - non-reactive
 ## individual dist
 ## - provide symbol to select (by number in list), list of symbols (from start), dataset of returns as data frame
@@ -50,9 +52,9 @@ function(input, output, session) {
     dt_start <- input$dtRng[1]
     dt_end <- input$dtRng[2] 
     ## for testing - set symbols and dates
-    #sym_list <- str_split_1("META AMZN AAPL GOOG", " ")
-    #dt_start <- '2022-01-01'
-    #dt_end <- '2023-05-12'
+    # sym_list <- str_split_1("META AMZN AAPL GOOG", " ")
+    # dt_start <- '2022-01-01'
+    # dt_end <- '2023-05-12'
     ## empty data frame to hold results of loop
     symData_all <- NULL
     ## loop through to get data for each symbol
@@ -135,7 +137,7 @@ function(input, output, session) {
     ## - cumulative returns, avg mthly, median mthly, 0.05 quantile
     ## get return data
     symData_mth_ret <- symData_mth_ret()
-    ## test - comment out if not testing
+    ## for testing: start here
     symData_mth_ret <- symData_mth_ret
     
     ## cumulative return for period
@@ -175,6 +177,7 @@ function(input, output, session) {
       decimals=1,
       use_seps = FALSE
     ) |>
+      ## edit col names for readability
       cols_label(
         cumulative_rtn = "cumulative",
         mean_rtn = "mthly ave",
@@ -205,12 +208,12 @@ function(input, output, session) {
     ## uses mutate instead of summarize: data is left ungrouped and summary stats repeated
     ## maintains single df for histogram - use group=asset to display individual summary stats
     df_mth_ret_long <- df_mth_ret_long %>% group_by(asset) %>% mutate(
-      ret_mean=mean(returns),
-      ret_med=median(returns),
+      ret_mean=mean(returns, na.rm=TRUE),
+      ret_med=median(returns, na.rm=TRUE),
       ## what % are you ok with losing in a mth?
-      ret_pc25=quantile(returns, 0.25), ## 25% of time returns this low
-      ret_pc20=quantile(returns, 0.1), ## 10% of time returns this low
-      ret_pc05=quantile(returns, 0.05) ## 5% of time returns this low
+      ret_pc25=quantile(returns, 0.25, na.rm=TRUE), ## 25% of time returns this low
+      ret_pc20=quantile(returns, 0.1, na.rm=TRUE), ## 10% of time returns this low
+      ret_pc05=quantile(returns, 0.05, na.rm=TRUE) ## 5% of time returns this low
     )
     cat(str(df_mth_ret_long),"\n")
     df_mth_ret_long
@@ -318,10 +321,10 @@ function(input, output, session) {
   
   symData_yr_ret <- reactive({
     data_all <- symData_all()
-    ## for testing: uncomment, skip syms stmt, run (assuming symData_all avail.)
-    #data_all <- symData_all
     ## get symbols and dates from inputs
     sym_list <- sym_list()
+    ## for testing: uncomment, skip syms stmt, run (assuming symData_all avail.)
+    #data_all <- symData_all
     symData_yr_ret <- NULL
     for(i in 1:length(sym_list)){
       cadj <- i*6
@@ -333,11 +336,101 @@ function(input, output, session) {
     symData_yr_ret
   })
   
-  ## > chart returns ####
-  output$retChart_yr <- renderDygraph({
-    symData <- symData_yr_ret()
-    dygraph(symData) %>% dyRangeSelector()
+  ## > calc summary of overall returns ####
+  yr_ret_smry <- reactive({
+    ## create table with stats in cols and assets in rows
+    ## - cumulative returns, avg mthly, median mthly, 0.05 quantile
+    ## get return data
+    symData_ret <- symData_yr_ret()
+    ## for testing
+    #symData_ret <- symData_yr_ret
+    
+    ## cumulative return for period
+    df_ret_smry <- data.frame()
+    ## calculates all at once - don't need loop
+    df_ret_cum <- data.frame(Return.cumulative(symData_ret))
+    df_ret_cum_col <- df_ret_cum %>% pivot_longer(everything(), names_to='asset', values_to='cumulative_rtn')
+    df_ret_smry <- bind_rows(df_ret_smry, df_ret_cum_col)
+    
+    ## get ave ret
+    ## need to loop through symData_ret to calc for each col
+    ## add cols for new metric to existing df 
+    df_ret_stats <- data.frame(colMeans(symData_ret)) %>% rownames_to_column('asset')
+    colnames(df_ret_stats)[2] <- 'mean_rtn' 
+    df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
+    
+    ## median - same as above and join
+    df_ret_stats <- data.frame(apply(symData_ret, MARGIN=2, FUN=median)) %>% rownames_to_column('asset')
+    colnames(df_ret_stats)[2] <- 'median_rtn' 
+    df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
+    
+    ## .05 quantile - same as above and join
+    # Calculate the 5th percentile for each stock
+    df_ret_stats <- data.frame(apply(symData_ret, 2, function(x) quantile(x, probs = 0.05))) %>% rownames_to_column(('asset'))
+    colnames(df_ret_stats)[2] <- 'percentile_5'
+    df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
+    
+    ## set to period return to avoid confusion
+    df_yr_ret_smry <- df_ret_smry
+    return(df_yr_ret_smry)
+    
   })
+  ## summary table - using gt
+  output$yr_smry_tbl <- render_gt({
+    ret_smry <- yr_ret_smry()
+    tbl <- gt(ret_smry)
+    tbl |> fmt_percent(
+      columns=everything(),
+      decimals=1,
+      use_seps = FALSE
+    ) |>
+      ## edit col names for readability
+      cols_label(
+        cumulative_rtn = "cumulative",
+        mean_rtn = "annual ave",
+        median_rtn = "annual median",
+        percentile_5 = "annual at risk*"
+      )
+  })
+  
+  ## > chart returns ####
+  ## used dygraph at first but confusing with lines and couldn't get
+  ##  to only show end of yr on x-axis (now realize it is because of current yr data
+  ##  point as of latest date)
+  #output$retChart_yr <- renderDygraph({
+    #symData <- symData_yr_ret()
+    #dygraph(symData_a) %>% 
+    #  dyAxis("x", axisLabelFormatter = JS("function(d, gran) { return d.getFullYear(); }"))
+  #})
+  
+  output$retChart_yr <- renderPlotly({
+    symData <- symData_yr_ret()
+    df_symData <- data.frame(symData)
+    df_symData <- df_symData %>% rownames_to_column("date")
+    df_symData <- df_symData %>% pivot_longer(!date, names_to="asset", values_to="returns")
+    #cat("pivoted: ", head(df_symData))
+    #ar_plot <- df_symData %>% ggplot(aes(x=date, y=returns, fill=asset))+geom_col(position=position_dodge2())+
+    #  scale_y_continuous(labels=percent_format())+
+    #  labs(x="", y="annual return")
+    # ar_plot <- df_symData %>% ggplot(aes(x=date, y=returns))+geom_col()+
+    #   facet_wrap(.~asset)+
+    #   scale_y_continuous(labels=percent_format())+
+    #   labs(x="", y="annual return")
+    ar_plot <- df_symData %>% ggplot(aes(x=date, y=returns))+geom_col()+
+      facet_grid(.~asset)+
+      scale_y_continuous(labels=percent_format())+
+      geom_hline(yintercept=0)+
+      labs(x="", y="")+
+      theme_light()+
+      theme(axis.text.x = element_text(angle=90),
+            panel.grid = element_blank(),
+            axis.ticks.x = element_blank())
+    
+    ggplotly(ar_plot)
+  })
+  
+  ## > annual smry ####
+  
   ## > correl returns ####
   output$yr_corr <- renderPlot({
     symData <- symData_yr_ret()

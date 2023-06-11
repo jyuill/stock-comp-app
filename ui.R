@@ -43,7 +43,8 @@ fluidPage(
               tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup"),
               style="font-size: 0.9em; padding-left: 4px;"),
             dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ) %>% tagAppendAttributes(class='date-box'),
-            checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE)
+            checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE),
+            width=3
         ), ## end sidebar panel ####
         ## main panel ####
         mainPanel(
@@ -99,7 +100,13 @@ fluidPage(
                    tags$h3("Annual Returns"),
                    tags$p("Comparing returns over longer cycle. Based on calendar year."),
                    tags$h4("Annual Returns Comparison"),
-                   dygraphOutput("retChart_yr"),
+                   #dygraphOutput("retChart_yr"),
+                   plotlyOutput("retChart_yr"),
+                   tags$h4("Summary"),
+                   tags$p("Summary of return data for the date range selected."),
+                   gt_output(outputId='yr_smry_tbl'),
+                   tags$p("* expected 'worst case' scenario for monthly drop, based on historical 5% chance of losing this much.") %>%
+                     tagAppendAttributes(class='small-note'),
                    tags$h4("Return Correlations"),
                    tags$p("Correlation of annual returns over the period."),
                    plotOutput("yr_corr"),
