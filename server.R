@@ -166,21 +166,21 @@ function(input, output, session) {
     return(df_mth_ret_smry)
     
   })
-  ## test table
-  #tbl <- gt(df_mth_ret_smry)
-  #tbl %>% fmt_percent(
-  #  columns=everything(),
-  #  decimals=1,
-  #  use_seps = FALSE
-  #)
+  ## summary table - using gt
   output$mth_smry_tbl <- render_gt({
     mth_ret_smry <- mth_ret_smry()
     tbl <- gt(mth_ret_smry)
-    tbl %>% fmt_percent(
+    tbl |> fmt_percent(
       columns=everything(),
       decimals=1,
       use_seps = FALSE
-    )
+    ) |>
+      cols_label(
+        cumulative_rtn = "cumulative",
+        mean_rtn = "mthly ave",
+        median_rtn = "mthly median",
+        percentile_5 = "mthly at risk*"
+      )
   })
     
     ## > chart returns ####
@@ -325,6 +325,7 @@ function(input, output, session) {
     symData_yr_ret <- NULL
     for(i in 1:length(sym_list)){
       cadj <- i*6
+      ## annual return calculation with built-in function
       sym_yr <- annualReturn(data_all[,cadj])
       colnames(sym_yr) <- sym_list[i]
       symData_yr_ret <- cbind(symData_yr_ret, sym_yr)

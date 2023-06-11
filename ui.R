@@ -14,7 +14,7 @@ library(gt)
 library(plotly)
 
 
-# Define UI for application that draws a histogram
+# Define UI for application
 fluidPage(
   ## head ####
   tags$head(
@@ -22,7 +22,7 @@ fluidPage(
     # Add a CSS rule for the dygraph container
     # - suggested by chatGPT - doesn't do anything
     tags$style(
-      "#drawdown-container {
+      ".drawdown-container {
       border: 10px solid #ccc;
       padding: 50px;
       }"
@@ -30,15 +30,19 @@ fluidPage(
  ), ## end head ####
     
     # title ####
-    titlePanel("Stock Price Comparisons"),
-
+    h2("Stock Price Comparisons:",
+       tags$span("Enter Symbols of Interest for Price, Return, and Related Comparisons",
+                 style="font-size: 0.8em; color: darkgrey; font-weight: normal"),
+               ) %>% tagAppendAttributes(class="title-panel-class"),
     # layout ####
     sidebarLayout(
       ## sidebar panel ####
         sidebarPanel(
-            textInput(inputId='txtSym', label="Enter Symbol (sep with single space, no commas)", value="^GSPC AAPL GOOG KO"),
-            tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup"),
-            dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ),
+            textInput(inputId='txtSym', label="Enter Symbol (sep with single space, no commas)", value="^GSPC AAPL GOOG KO") %>% tagAppendAttributes(class="symbol-box"),
+            tags$div(
+              tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup"),
+              style="font-size: 0.9em; padding-left: 4px;"),
+            dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ) %>% tagAppendAttributes(class='date-box'),
             checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE)
         ), ## end sidebar panel ####
         ## main panel ####
@@ -47,33 +51,37 @@ fluidPage(
           tabsetPanel(
             ## Prices ####
             tabPanel(title='Prices',
-              tags$h2("Prices & Correlation"),
-              tags$p(tags$em("(click 'Normalized?' at left for scaled comparison)")),
-              tags$h3("Prices"),
+              tags$h3("Prices & Correlation"),
+              tags$p("Prices for general context before looking at returns.",tags$em("(click 'Normalized?' at left for scaled comparison)")),
+              tags$h4("Prices"),
               dygraphOutput("priceChart"),
-              tags$h3("Price Correlations"),
+              tags$h4("Price Correlations"),
               plotOutput("pa_corr")
             ), ## end Prices panel ####
             ## Mth Returns ####
             tabPanel(title='Mthly Returns',
-              tags$p("Prices may be interesting, but RETURNS are the game. All data based on ADJUSTED returns."),
               tags$h3("Monthly Returns"),
+              tags$p("Prices may be interesting, but RETURNS are the game. All data based on ADJUSTED returns."),
+              tags$h4("Monthly Return Comparison"),
               tags$p("Returns based on price at end of mth vs beginning."),
               dygraphOutput("retChart"),
-              tags$h3("Summary"),
+              tags$h4("Summary"),
+              tags$p("Summary of mthly return data for the date range selected."),
               gt_output(outputId='mth_smry_tbl'),
-              tags$h3("Return Correlations"),
+              tags$p("* expected 'worst case' scenario for monthly drop, based on historical 5% chance of losing this much.") %>%
+                tagAppendAttributes(class='small-note'),
+              tags$h4("Return Correlations"),
               tags$p("Correlation of monthly returns over the period."),
               plotOutput("mr_corr"),
               #tags$h3("mr_dist_plots: where?"),
               #uiOutput(outputId="mr_dist_plots"),
-              tags$h3("Distribution of monthly returns"),
+              tags$h4("Distribution of monthly returns"),
               #plotOutput(outputId="mr_dist_hist"),
               plotlyOutput(outputId="mr_dist_hist"),
               tags$p("Red = mean, Green = median, Blue = 5th percentile"),
-              tags$h3("Drawdowns"),
+              tags$h4("Drawdowns"),
               dygraphOutput(outputId='drawdown'),
-              tags$h3("Upside/downside capture"),
+              tags$h4("Upside/downside capture"),
               tags$p("Shows the relative percentage of upside and downside captured 
               by an asset relative to a benchmark."),
               plotOutput(outputId='updown'),
@@ -88,16 +96,17 @@ fluidPage(
           ), ## > end Mthly Returns panel ####
           ## Yr returns ####
           tabPanel(title='Annual Returns',
-                   tags$h2("Annual Returns"),
                    tags$h3("Annual Returns"),
+                   tags$p("Comparing returns over longer cycle. Based on calendar year."),
+                   tags$h4("Annual Returns Comparison"),
                    dygraphOutput("retChart_yr"),
-                   tags$h3("Return Correlations"),
-                   tags$p("Correlation of monthly returns over the period."),
+                   tags$h4("Return Correlations"),
+                   tags$p("Correlation of annual returns over the period."),
                    plotOutput("yr_corr"),
                    ), ## > end 1 yr returns ####
           ## Rolling Ret ####
           tabPanel(title='Rolling Returns',
-                   tags$h2("Rolling Returns Analysis"),
+                   tags$h3("Rolling Returns Analysis"),
                    tags$p("Coming soon!")
                    ) ## > end Rolling Ret ####
         ) ## end tabset panel ####
