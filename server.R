@@ -423,6 +423,18 @@ function(input, output, session) {
     ggplotly(ar_plot)
   })
   
+  ## > cum. retn chart over the period ####  
+  ## not ideal - mid-yr x-axis; not sure how to avoid, since partial current yr
+  output$cumChart_yr <- renderDygraph({
+     symData_ret <- symData_yr_ret()
+     chart.CumReturns(symData_ret, wealth.index=TRUE, legend.loc='topleft', plot.engine='dygraph') %>%
+       dyAxis("y", axisLabelFormatter = JS("function(d) { return '$' + d.toFixed(2); }"))
+   })  
+  ## attempt at improving - no better
+  # output$cumChart_yr <- renderPlotly({
+  #   symData_ret <- symData_yr_ret()
+  #   chart.CumReturns(symData_ret, wealth.index=TRUE, legend.loc='topleft', plot.engine='plotly') 
+  # })  
   ## > annual smry ####
   
   ## > correl returns ####

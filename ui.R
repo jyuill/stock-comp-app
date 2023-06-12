@@ -40,7 +40,7 @@ fluidPage(
         sidebarPanel(
             textInput(inputId='txtSym', label="Enter Symbol (sep with single space, no commas)", value="^GSPC AAPL GOOG KO") %>% tagAppendAttributes(class="symbol-box"),
             tags$div(
-              tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup"),
+              tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup", target="_blank"),
               style="font-size: 0.9em; padding-left: 4px;"),
             dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ) %>% tagAppendAttributes(class='date-box'),
             checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE),
@@ -105,6 +105,12 @@ fluidPage(
                    tags$h4("Annual Returns Comparison"),
                    #dygraphOutput("retChart_yr"),
                    plotlyOutput("retChart_yr"),
+                   tags$h5("Cumulative Returns"),
+                   tags$p("Cumulative Return on $1 invested at start of period:"),
+                   ## consider REPLACE - x-axis shows mid-yr mths, confusing
+                   dygraphOutput("cumChart_yr"),
+                   ## NOT much better (if at all)
+                   #plotlyOutput("cumChart_yr"),
                    tags$h4("Summary"),
                    tags$p("Summary of return data for the date range selected."),
                    gt_output(outputId='yr_smry_tbl'),
