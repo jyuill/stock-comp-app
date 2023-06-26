@@ -32,7 +32,8 @@ fn_ind_rtn_dist <- function(sel, symbs, data){
                   main=symbs[sel])
 }
 
-fn_rtn_smry <- function(data){
+fn_rtn_smry <- function(data, freq){
+  ## freq is for frequency of return data -> treated differently for sharpe
   ## set var from data, due to legacy references in code below
   symData_ret <- data
   ## cumulative return for period
@@ -60,6 +61,25 @@ fn_rtn_smry <- function(data){
   colnames(df_ret_stats)[2] <- 'percentile_5'
   df_ret_smry <- left_join(df_ret_smry, df_ret_stats, by="asset")
   
+  ## Sharpe ratio
+  ## set risk-free rate - determine version based on mthly or annual
+  Rf_var <- 0.04
+  if(freq=='mth'){
+    Rf_var <- Rf_var/12
+  } else {
+    Rf_var <- Rf_var
+  }
+    sharpe_ratio <- SharpeRatio(symData_ret, Rf = Rf_var, p = 0.95, FUN = "StdDev", annualize = TRUE)
+  # The "Rf" parameter represents the risk-free rate (default is 0)
+  # The "p" parameter represents the annualization factor (default is 0)
+  # The "FUN" parameter represents the function to be used for standard deviation calculation (default is "sd")
+  # df & pivot
+  df_sharpe <- data.frame(sharpe_ratio)
+  df_sharpe_p <- df_sharpe %>% pivot_longer(everything(), names_to='asset', values_to='sharpe')
+  ## join
+  df_ret_smry <- left_join(df_ret_smry, df_sharpe_p, by="asset")
+  
+  ## return complete df/table
   return(df_ret_smry)
 }
 
@@ -168,7 +188,7 @@ function(input, output, session) {
       cat("medians",apply(symData_mth_ret, MARGIN=2, FUN=median),"\n")
       symData_mth_ret
     })
- 
+    
     ## > chart returns ####
     output$retChart <- renderDygraph({
       symData <- symData_mth_ret()
@@ -192,7 +212,7 @@ function(input, output, session) {
     ## for testing: start here
     symData_mth_ret <- symData_mth_ret
     ## use function to process data
-    df_mth_ret_smry <- fn_rtn_smry(symData_mth_ret)
+    df_mth_ret_smry <- fn_rtn_smry(symData_mth_ret, 'mth')
     return(df_mth_ret_smry)
   })
   
@@ -366,7 +386,7 @@ function(input, output, session) {
     ## for testing
     #symData_ret <- symData_yr_ret
     
-    df_yr_ret_smry <- fn_rtn_smry(symData_ret)
+    df_yr_ret_smry <- fn_rtn_smry(symData_ret, 'ann')
     return(df_yr_ret_smry)
   })
   ## summary table - using gt
