@@ -31,7 +31,7 @@ fluidPage(
     
     # title ####
     h2("Stock Price Comparisons:",
-       tags$span("Enter Symbols of Interest for Price, Return, and Related Comparisons",
+       tags$span("Enter Symbols for Price, Return, and Related Comparisons",
                  style="font-size: 0.8em; color: darkgrey; font-weight: normal"),
                ) %>% tagAppendAttributes(class="title-panel-class"),
     # layout ####
@@ -130,7 +130,21 @@ fluidPage(
                    tags$h4("24 mth Rolling Returns"),
                    tags$h4("36 mth Rolling Returns"),
                    tags$h4("60 mth Rolling Returns")
-                   ) ## > end Rolling Ret ####
+                   ), ## > end Rolling Ret ####
+          tabPanel(title="About",
+                   tags$h3("About this app"),
+                   tags$p("This app is designed to allow users to compare stock prices and returns over a specified date range. 
+                          It is provided for information purposes only, with no recommendations or guarantees of data accuracy."),
+                   tags$p("The app uses the quantmod package to retrieve stock data from Yahoo Finance, and the PerformanceAnalytics package to calculate returns and drawdowns."),
+                   tags$p("The app is built using the Shiny framework, which allows for interactive web applications in R."),
+                   tags$p("This app is a work in progress, and additional features will be added in the future."),
+                   tags$h3("Who did this?"),
+                   tags$p(HTML("Created by <strong>John Yuill</strong>, 
+                        a data analyst and data product developer based in Vancouver, BC, Canada."), 
+                          tags$br("Reach me on", 
+                                  tags$a(href="https://www.linkedin.com/in/johnyuill/", "LinkedIn.", class="non-tab"),
+                                  " for more info, questions, comments."))
+                  ) ## > end About panel ####
         ) ## end tabset panel ####
     ) ## end main panel ####
 ) ## end sidebar layout
