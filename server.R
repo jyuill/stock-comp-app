@@ -137,7 +137,7 @@ function(input, output, session) {
   
   ## retrieve test data ####
   ## - comment out when not using
-  symData_all <- readRDS('data/symData_all.rds')
+  #symData_all <- readRDS('data/symData_all.rds')
   
   ## price chart ####
   ## price chart - show data collected above to compare symbols
@@ -513,19 +513,39 @@ function(input, output, session) {
      return_12m_price_method <- ROC(symData_all_m, n = 12, type = "discrete")
      
      symData_roll_12 <- return_12m_price_method*100
+     symData_roll_12 <- na.omit(symData_roll_12)
      symData_roll_12
   })
-  ## > chart rolling returns ####
+  ## > line chart rolling returns ####
   output$rolling_12 <- renderDygraph({
     symData <- symData_roll_12()
     dygraph(symData) %>% dyRangeSelector() %>%
       dyAxis("y", axisLabelFormatter = JS("function(d) { return (d).toFixed(0) + '%'; }"))
   })
-  
-  # output$rolling <- renderPlot({
-  #   symData <- symData_yr_ret()
-  #   chart.RollingPerformance(symData, geometric=TRUE, legend.loc='topleft')
-  #})
+  ## > histogram rolling returns ####
+  # generate histogram for twelve month rolling returns in symData_roll_12
+  output$rolling_12_hist_x <- renderPlot({
+    symData <- symData_roll_12()
+    chart.Histogram(symData, methods=c("add.normal","add.risk"),
+                    colorset = c('steelblue','','navyblue'),
+                    main="12m Rolling Returns")
+  })
+  ## > rolling returns summary ####
+  output$rolling_hist_12 <- renderPlotly({
+    symData <- symData_roll_12()
+    df_symData <- data.frame(symData)
+    df_symData <- df_symData %>% rownames_to_column("date")
+    df_symData <- df_symData %>% pivot_longer(!date, names_to="asset", values_to="returns")
+    #cat("pivoted: ", head(df_symData))
+    roll_plot <- df_symData %>% ggplot(aes(x=returns/100))+geom_histogram()+
+      facet_wrap(.~asset)+
+      geom_vline(xintercept=0, linetype='solid', color='black', linewidth=1)+
+      scale_x_continuous(labels=percent_format())+
+      labs(x="Distribution of Returns", y="# of mths")+
+      theme(panel.grid.minor = element_blank())
+    
+    ggplotly(roll_plot)
+  })
   
 } ## end server ####
 

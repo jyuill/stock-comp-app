@@ -125,8 +125,11 @@ fluidPage(
                    tags$h3("Rolling Returns Analysis"),
                    tags$h4("12 mth Rolling Returns"),
                    dygraphOutput("rolling_12"),
-                   tags$p("MORE oming soon!")
-                   
+                   plotlyOutput("rolling_hist_12"),
+                   tags$p("MORE oming soon!"),
+                   tags$h4("24 mth Rolling Returns"),
+                   tags$h4("36 mth Rolling Returns"),
+                   tags$h4("60 mth Rolling Returns")
                    ) ## > end Rolling Ret ####
         ) ## end tabset panel ####
     ) ## end main panel ####
