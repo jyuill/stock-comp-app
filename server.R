@@ -21,7 +21,11 @@ library(gt)
 library(plotly)
 library(htmlwidgets)
 
+## settings ####
 theme_set(theme_bw())
+options(scipen = 999) ## turn off scientific notation
+
+## functions ####
 ## functions - non-reactive
 ## individual dist
 ## - provide symbol to select (by number in list), list of symbols (from start), dataset of returns as data frame
@@ -82,6 +86,7 @@ fn_rtn_smry <- function(data, freq){
   ## return complete df/table
   return(df_ret_smry)
 }
+## end functions ####
 
 ## start server ####
 function(input, output, session) {
@@ -94,6 +99,11 @@ function(input, output, session) {
     str_split_1(input$txtSym, " ")
   })
   ## PRICES ####
+  ## testing - symbols, dates ####
+  #sym_list <- str_split_1("META AMZN TSLA GOOG", " ")
+  #dt_start <- '2020-01-01'
+  #dt_end <- '2023-05-12'
+  
   ## get price data ####
   symData_all <- reactive({
     #req(input$txtSym)
@@ -102,10 +112,6 @@ function(input, output, session) {
     print(sym_list)
     dt_start <- input$dtRng[1]
     dt_end <- input$dtRng[2] 
-    ## for testing - set symbols and dates
-    #sym_list <- str_split_1("META AMZN TSLA GOOG", " ")
-    #dt_start <- '2020-01-01'
-    #dt_end <- '2023-05-12'
     ## empty data frame to hold results of loop
     symData_all <- NULL
     ## loop through to get data for each symbol
@@ -120,9 +126,18 @@ function(input, output, session) {
     ## show total returns for ref
     cat("total return of first item:", (last(symData_all[,6])[[1]] - first(symData_all[,6])[[1]])/first(symData_all[,6])[[1]],"\n")
     
+    ### save for testing ####
+    ## save xts data if needed for testing
+    ## - retrieve with code below function
+    saveRDS(symData_all, 'data/symData_all.rds')
+    
     ## return combined results of each loop (all symbols)
     symData_all
   })
+  
+  ## retrieve test data ####
+  ## - comment out when not using
+  symData_all <- readRDS('data/symData_all.rds')
   
   ## price chart ####
   ## price chart - show data collected above to compare symbols
@@ -179,6 +194,7 @@ function(input, output, session) {
       ## end test vars
       symData_mth_ret <- NULL
       for(i in 1:length(sym_list)){
+        ## get adjusted prices for each symbol -> every 6th col
         cadj <- i*6
         sym_mr <- monthlyReturn(data_all[,cadj])
         colnames(sym_mr) <- sym_list[i]
@@ -463,6 +479,53 @@ function(input, output, session) {
     chart.Correlation(symData)
   })
   
+  ## 12mth rolling ####
+  ##> calc rolling rtns 12mth period ####
+  
+  symData_roll_12 <- reactive({
+     data_all <- symData_all()
+     ## for testing (assuming symData_all avail.)
+     #data_all <- symData_all
+     end_mth <- endpoints(data_all, on='months')
+     symData_all_m <- data_all[end_mth,]
+     # get adjusted prices for each symbol -> every 6th col
+     adj <- seq(6, ncol(data_all), 6)
+     symData_all_m <- symData_all_m[,adj]
+     
+     # two approaches from ChatGPT:
+     # approach #1:
+     # calc mthly returns then calc cumulative returns over 12 mth periods
+     # calc monthly returns -> make sure method = 'discrete', not 'log'
+     monthly_returns <- Return.calculate(symData_all_m, method = "discrete")
+     monthly_returns <- na.omit(monthly_returns)  # remove the first NA
+     # calc rolling 12mth returns
+     rolling_12m_returns <- rollapply(
+       monthly_returns,
+       width = 12,
+       FUN = function(x) apply(x, 2, function(col) prod(1 + col) - 1),
+       by.column = FALSE,  # because we're applying to all columns ourselves
+       align = "right",
+       fill = NA
+     )
+    # approach 2: simpler, virtually same results
+     # simpler method based on mthly prices (can be used for any period, not just 12mth)
+     #library(TTR)
+     return_12m_price_method <- ROC(symData_all_m, n = 12, type = "discrete")
+     
+     symData_roll_12 <- return_12m_price_method*100
+     symData_roll_12
+  })
+  ## > chart rolling returns ####
+  output$rolling_12 <- renderDygraph({
+    symData <- symData_roll_12()
+    dygraph(symData) %>% dyRangeSelector() %>%
+      dyAxis("y", axisLabelFormatter = JS("function(d) { return (d).toFixed(0) + '%'; }"))
+  })
+  
+  # output$rolling <- renderPlot({
+  #   symData <- symData_yr_ret()
+  #   chart.RollingPerformance(symData, geometric=TRUE, legend.loc='topleft')
+  #})
   
 } ## end server ####
 

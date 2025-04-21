@@ -42,7 +42,7 @@ fluidPage(
             tags$div(
               tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup", target="_blank"),
               style="font-size: 0.9em; padding-left: 4px;"),
-            dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2023-05-01' ) %>% tagAppendAttributes(class='date-box'),
+            dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2025-03-31' ) %>% tagAppendAttributes(class='date-box'),
             checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE),
             width=3
         ), ## end sidebar panel ####
@@ -123,7 +123,10 @@ fluidPage(
           ## Rolling Ret ####
           tabPanel(title='Rolling Returns',
                    tags$h3("Rolling Returns Analysis"),
-                   tags$p("Coming soon!")
+                   tags$h4("12 mth Rolling Returns"),
+                   dygraphOutput("rolling_12"),
+                   tags$p("MORE oming soon!")
+                   
                    ) ## > end Rolling Ret ####
         ) ## end tabset panel ####
     ) ## end main panel ####
