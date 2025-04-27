@@ -18,7 +18,7 @@ library(plotly)
 fluidPage(
   ## head ####
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
+    tags$link(rel = "stylesheet", type = "text/css", href = "www/styles.css"),
     # Add a CSS rule for the dygraph container
     # - suggested by chatGPT - doesn't do anything
     tags$style(
