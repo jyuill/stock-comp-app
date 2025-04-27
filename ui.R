@@ -126,10 +126,15 @@ fluidPage(
                    tags$h4("12 mth Rolling Returns"),
                    dygraphOutput("rolling_12"),
                    plotlyOutput("rolling_hist_12"),
-                   tags$p("MORE oming soon!"),
                    tags$h4("24 mth Rolling Returns"),
+                   dygraphOutput("rolling_24"),
+                   plotlyOutput("rolling_hist_24"),
                    tags$h4("36 mth Rolling Returns"),
-                   tags$h4("60 mth Rolling Returns")
+                   dygraphOutput("rolling_36"),
+                   plotlyOutput("rolling_hist_36"),
+                   tags$h4("60 mth Rolling Returns"),
+                   dygraphOutput("rolling_60"),
+                   plotlyOutput("rolling_hist_60"),
                    ), ## > end Rolling Ret ####
           tabPanel(title="About",
                    tags$h3("About this app"),

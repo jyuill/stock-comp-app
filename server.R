@@ -26,6 +26,7 @@ theme_set(theme_bw())
 options(scipen = 999) ## turn off scientific notation
 
 ## functions ####
+source('functions/rolling_ret.R')
 ## functions - non-reactive
 ## individual dist
 ## - provide symbol to select (by number in list), list of symbols (from start), dataset of returns as data frame
@@ -479,48 +480,50 @@ function(input, output, session) {
     chart.Correlation(symData)
   })
   
-  ## 12mth rolling ####
-  ##> calc rolling rtns 12mth period ####
+  ## Rolling ####
+  ##> 12 mth calc rolling rtns 12mth period ####
   
   symData_roll_12 <- reactive({
-     data_all <- symData_all()
+     # using function from rolling_ret.R -> apply to any # of rolling mths
+     rolling_returns_mth(symData_all(), n_roll = 12)
+     #data_all <- symData_all()
      ## for testing (assuming symData_all avail.)
      #data_all <- symData_all
-     end_mth <- endpoints(data_all, on='months')
-     symData_all_m <- data_all[end_mth,]
+     #end_mth <- endpoints(data_all, on='months')
+     #symData_all_m <- data_all[end_mth,]
      # get adjusted prices for each symbol -> every 6th col
-     adj <- seq(6, ncol(data_all), 6)
-     symData_all_m <- symData_all_m[,adj]
+     #adj <- seq(6, ncol(data_all), 6)
+     #symData_all_m <- symData_all_m[,adj]
      
      # two approaches from ChatGPT:
      # approach #1:
      # calc mthly returns then calc cumulative returns over 12 mth periods
      # calc monthly returns -> make sure method = 'discrete', not 'log'
-     monthly_returns <- Return.calculate(symData_all_m, method = "discrete")
-     monthly_returns <- na.omit(monthly_returns)  # remove the first NA
+     #monthly_returns <- Return.calculate(symData_all_m, method = "discrete")
+     #monthly_returns <- na.omit(monthly_returns)  # remove the first NA
      # calc rolling 12mth returns
-     rolling_12m_returns <- rollapply(
-       monthly_returns,
-       width = 12,
-       FUN = function(x) apply(x, 2, function(col) prod(1 + col) - 1),
-       by.column = FALSE,  # because we're applying to all columns ourselves
-       align = "right",
-       fill = NA
-     )
+     # rolling_12m_returns <- rollapply(
+     #   monthly_returns,
+     #   width = 12,
+     #   FUN = function(x) apply(x, 2, function(col) prod(1 + col) - 1),
+     #   by.column = FALSE,  # because we're applying to all columns ourselves
+     #   align = "right",
+     #   fill = NA
+     # )
     # approach 2: simpler, virtually same results
      # simpler method based on mthly prices (can be used for any period, not just 12mth)
      #library(TTR)
-     return_12m_price_method <- ROC(symData_all_m, n = 12, type = "discrete")
+     #return_12m_price_method <- ROC(symData_all_m, n = 12, type = "discrete")
      
-     symData_roll_12 <- return_12m_price_method*100
-     symData_roll_12 <- na.omit(symData_roll_12)
-     symData_roll_12
+     #symData_roll_12 <- return_12m_price_method*100
+     #symData_roll_12 <- na.omit(symData_roll_12)
+     #symData_roll_12
+     
   })
   ## > line chart rolling returns ####
   output$rolling_12 <- renderDygraph({
-    symData <- symData_roll_12()
-    dygraph(symData) %>% dyRangeSelector() %>%
-      dyAxis("y", axisLabelFormatter = JS("function(d) { return (d).toFixed(0) + '%'; }"))
+    # used data from above reactive
+    rolling_plot(symData_roll_12())
   })
   ## > histogram rolling returns ####
   # generate histogram for twelve month rolling returns in symData_roll_12
@@ -532,20 +535,74 @@ function(input, output, session) {
   })
   ## > rolling returns summary ####
   output$rolling_hist_12 <- renderPlotly({
-    symData <- symData_roll_12()
-    df_symData <- data.frame(symData)
-    df_symData <- df_symData %>% rownames_to_column("date")
-    df_symData <- df_symData %>% pivot_longer(!date, names_to="asset", values_to="returns")
-    #cat("pivoted: ", head(df_symData))
-    roll_plot <- df_symData %>% ggplot(aes(x=returns/100))+geom_histogram()+
-      facet_wrap(.~asset)+
-      geom_vline(xintercept=0, linetype='solid', color='black', linewidth=1)+
-      scale_x_continuous(labels=percent_format())+
-      labs(x="Distribution of Returns", y="# of mths")+
-      theme(panel.grid.minor = element_blank())
-    
-    ggplotly(roll_plot)
+    ## get return data in long format for hist from smry function
+    rolling_hist(symData_roll_12(), title="Summary of 12m Rolling Returns")
+    # symData <- symData_roll_12()
+    # df_symData <- data.frame(symData)
+    # df_symData <- df_symData %>% rownames_to_column("date")
+    # df_symData <- df_symData %>% pivot_longer(!date, names_to="asset", values_to="returns")
+    # #cat("pivoted: ", head(df_symData))
+    # roll_plot <- df_symData %>% ggplot(aes(x=returns/100))+geom_histogram()+
+    #   facet_wrap(.~asset)+
+    #   geom_vline(xintercept=0, linetype='solid', color='black', linewidth=1)+
+    #   scale_x_continuous(labels=percent_format())+
+    #   labs(x="Distribution of Returns", y="# of mths")+
+    #   theme(panel.grid.minor = element_blank())
+    # 
+    # ggplotly(roll_plot)
   })
-  
+  ## 24 mth rolling ####
+  symData_roll_24 <- reactive({
+    # using function from rolling_ret.R -> apply to any # of rolling mths
+    rolling_returns_mth(symData_all(), n_roll = 24)
+  })
+  ## > line chart rolling returns ####
+  output$rolling_24 <- renderDygraph({
+    # used data from above reactive
+    rolling_plot(symData_roll_24())
+  })
+  ## > histogram rolling returns ####
+  # generate histogram for twelve month rolling returns in symData_roll_12
+  ## > rolling returns summary ####
+  output$rolling_hist_24 <- renderPlotly({
+    ## get return data in long format for hist from smry function
+    rolling_hist(symData_roll_24(), title="Summary of 2yr Rolling Returns (Mthly)")
+  })
+  ## 36 mth rolling ####
+  symData_roll_36 <- reactive({
+    # using function from rolling_ret.R -> apply to any # of rolling mths
+    rolling_returns_mth(symData_all(), n_roll = 36)
+  })
+  ## > line chart rolling returns ####
+  output$rolling_36 <- renderDygraph({
+    # used data from above reactive
+    rolling_plot(symData_roll_36())
+  })
+  ## > histogram rolling returns ####
+  # generate histogram for twelve month rolling returns in symData_roll_12
+  ## > rolling returns summary ####
+  output$rolling_hist_36 <- renderPlotly({
+    ## get return data in long format for hist from smry function
+    rolling_hist(symData_roll_36(), title="Summary of 3yr Rolling Returns (Mthly)")
+  })
+  ## 60 mth rolling ####
+  symData_roll_60 <- reactive({
+    # using function from rolling_ret.R -> apply to any # of rolling mths
+    roll_60 <- rolling_returns_mth(symData_all(), n_roll = 60)
+    print(roll_60)
+    return(roll_60)
+  })
+  ## > line chart rolling returns ####
+  output$rolling_60 <- renderDygraph({
+    # used data from above reactive
+    rolling_plot(symData_roll_60())
+  })
+  ## > histogram rolling returns ####
+  # generate histogram for twelve month rolling returns in symData_roll_12
+  ## > rolling returns summary ####
+  output$rolling_hist_60 <- renderPlotly({
+    ## get return data in long format for hist from smry function
+    rolling_hist(symData_roll_60(), title="Summary of 5yr Rolling Returns (Mthly)")
+  })
 } ## end server ####
 
