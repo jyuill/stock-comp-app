@@ -8,8 +8,8 @@ rolling_returns_mth <- function(data_d, n_roll = 12) {
     end_mth <- endpoints(data_d, on='months')
     data_m <- data_d[end_mth,]
     # get adjusted prices for each symbol -> every 6th col
-    adj <- seq(6, ncol(data_m), 6)
-    data_m <- data_m[,adj]
+    #adj <- seq(6, ncol(data_m), 6)
+    #data_m <- data_m[,adj]
     
     return_price_method <- ROC(data_m, n = n_roll, type = "discrete")
     

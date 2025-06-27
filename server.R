@@ -88,33 +88,36 @@ fn_rtn_smry <- function(data, freq){
   return(df_ret_smry)
 }
 ## function to extract only adjusted prices
-sc_extract_adj <- function(symData){
+sc_extract_adj <- function(symdata){
   #adj <- seq(6, ncol(symData), 6)
   #symData <- symData[,adj]
-  symData_adj <- symData[, grep("\\.Adjusted$", names(symData))]
-  return(symData_adj)
+  symdata_adj <- symdata[, grep("\\.Adjusted$", names(symdata))]
+  return(symdata_adj)
 }
 ## function to get stock prices based on symbols and dates provided
-sc_symdata_fetch <- function(symb_list, dt_start, dt_end){
-  symData_all <- NULL
+sc_symdata_fetch <- function(sym_list, dt_start, dt_end){
+  cat("fetch data by symbol \n")
+  symdata_all <- NULL
     ## loop through to get data for each symbol
     for(symbs in sym_list){
       ## show list of all symbols and current symbol for reference
       cat(paste0("symbs: ", symbs, "\n"))
       ## build data as loop cycles
-      symData_all <- cbind(symData_all,
+      symdata_all <- cbind(symdata_all,
                            getSymbols(Symbols=symbs,
-                                      from=dt_start, to=dt_end, auto.assign=FALSE, src='yahoo'))
+                                      from=dt_start, to=dt_end, 
+                                      auto.assign=FALSE, src='yahoo'))
     }
     ## show total returns for ref
-    cat("total return of first item:", (last(symData_all[,6])[[1]] - first(symData_all[,6])[[1]])/first(symData_all[,6])[[1]],"\n")
+    #cat("total return of first item:", (last(symData_all[,6])[[1]] - first(symData_all[,6])[[1]])/first(symData_all[,6])[[1]],"\n")
     
     ## extract adjusted prices only since they are of highest interest
-    symdata_all_adj <- sc_extract_adj(symData_all)
+    symdata_all_adj <- sc_extract_adj(symdata_all)
+    print(head(symdata_all_adj[1:8]))
     ### save for testing ####
     ## save xts data if needed for testing
     ## - retrieve with code below function
-    saveRDS(symData_all, 'data/symData_all.rds')
+    saveRDS(symdata_all, 'data/symdata_all.rds')
     
     ## return combined results of each loop (all symbols)
     return(list(sym_data_alladj = symdata_all_adj, sym_data_all =symdata_all)) #symData_all
@@ -130,7 +133,7 @@ function(input, output, session) {
   sym_list <- reactive({
     req(input$txtSym)
     str_split_1(input$txtSym, " ")
-    print(input$txtSym)
+    #print(input$txtSym)
   })
   ## PRICES ####
   ## testing - symbols, dates ####
@@ -144,7 +147,7 @@ function(input, output, session) {
     req(input$txtSym)
     ## get symbols and dates from inputs
     sym_list <- sym_list()
-    print(sym_list)
+    #print(sym_list)
     dt_start <- input$dtRng[1]
     dt_end <- input$dtRng[2] 
     ## empty data frame to hold results of loop
@@ -170,9 +173,10 @@ function(input, output, session) {
     
     ## return combined results of each loop (all symbols)
     #return(list(symData_all_adj, symData_all)) #symData_all
-    symData_alladj <- sc_symdata_fetch(sym_list, dt_start, dt_end)
-    symData_alladj <- symData_alla$sym_data_alladj
-    return(symData_alladj)
+    cat("fetching: ", sym_list, " from", dt_start, " to ", dt_end, "\n")
+    symdata_alladj <- sc_symdata_fetch(sym_list, dt_start, dt_end)
+    symdata_alladj <- symdata_alladj$sym_data_alladj
+    return(symdata_alladj)
   })
   
   ## retrieve test data ####
@@ -201,13 +205,6 @@ function(input, output, session) {
                            order.by=index(symData))
         ## show dygraph with normalized data
         dygraph(symData_mmn) %>% dyRangeSelector()
-        ## replaced with above: calc min-max normalized
-        #symData <- na.omit(symData)
-        #symData_mmn <- xts(apply(symData, 2, function(x) (x-min(x))/(max(x)-min(x))
-        #                         ),
-        #                   order.by=index(symData))
-        ## show dygraph with normalized data
-        #dygraph(Ad(symData_mmn)) %>% dyRangeSelector()
       }
     })
     ## price summary ####
@@ -239,13 +236,12 @@ function(input, output, session) {
       #sym_list <- sym_list
       ## end test vars
       symData_mth_ret <- NULL
-      for(i in 1:length(sym_list)){
-        ## get adjusted prices for each symbol -> every 6th col
-        cadj <- i*6
-        sym_mr <- monthlyReturn(data_all[,cadj])
-        colnames(sym_mr) <- sym_list[i]
-        symData_mth_ret <- cbind(symData_mth_ret, sym_mr)
-      }
+      # monthly returns
+       for(i in 1:length(sym_list)){
+         sym_mr <- monthlyReturn(data_all[,i])
+         colnames(sym_mr) <- sym_list[i]
+         symData_mth_ret <- cbind(symData_mth_ret, sym_mr)
+       }
       cat("means:", colMeans(symData_mth_ret),"\n")
       cat("medians",apply(symData_mth_ret, MARGIN=2, FUN=median),"\n")
       symData_mth_ret
@@ -432,9 +428,8 @@ function(input, output, session) {
     #data_all <- symData_all
     symData_yr_ret <- NULL
     for(i in 1:length(sym_list)){
-      cadj <- i*6
       ## annual return calculation with built-in function
-      sym_yr <- annualReturn(data_all[,cadj])
+      sym_yr <- annualReturn(data_all[,i])
       colnames(sym_yr) <- sym_list[i]
       symData_yr_ret <- cbind(symData_yr_ret, sym_yr)
     }
@@ -447,7 +442,6 @@ function(input, output, session) {
     symData_ret <- symData_yr_ret()
     ## for testing
     #symData_ret <- symData_yr_ret
-    
     df_yr_ret_smry <- fn_rtn_smry(symData_ret, 'ann')
     return(df_yr_ret_smry)
   })

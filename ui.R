@@ -43,7 +43,7 @@ fluidPage(
               tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup", target="_blank"),
               style="font-size: 0.9em; padding-left: 4px;"),
             dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2025-03-31' ) %>% tagAppendAttributes(class='date-box'),
-            checkboxInput(inputId='mmnorm', label="Set initial price to $1", value=FALSE),
+            checkboxInput(inputId='mmnorm', label="Set initial price to $1 for relative prices", value=FALSE),
             width=3
         ), ## end sidebar panel ####
         ## main panel ####
@@ -62,7 +62,7 @@ fluidPage(
             ## Mth Returns ####
             tabPanel(title='Mthly Returns',
               tags$h3("Monthly Returns"),
-              tags$p("Prices may be interesting, but RETURNS are the game. All data based on ADJUSTED returns."),
+              tags$p("Prices may be interesting, but RETURNS are the game. All data based on ADJUSTED prices."),
               tags$h4("Monthly Return Comparison"),
               tags$p("Returns based on price at end of mth vs beginning."),
               dygraphOutput("retChart"),
