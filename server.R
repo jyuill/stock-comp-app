@@ -87,34 +87,16 @@ fn_rtn_smry <- function(data, freq){
   ## return complete df/table
   return(df_ret_smry)
 }
-## end functions ####
-
-## start server ####
-function(input, output, session) {
-  
-  ## Symbols ####
-  ## get symbols for use as inputs
-  ## reactive for accessing symbol info
-  sym_list <- reactive({
-    req(input$txtSym)
-    str_split_1(input$txtSym, " ")
-  })
-  ## PRICES ####
-  ## testing - symbols, dates ####
-  #sym_list <- str_split_1("META AMZN TSLA GOOG", " ")
-  #dt_start <- '2020-01-01'
-  #dt_end <- '2023-05-12'
-  
-  ## get price data ####
-  symData_all <- reactive({
-    #req(input$txtSym)
-    ## get symbols and dates from inputs
-    sym_list <- sym_list()
-    print(sym_list)
-    dt_start <- input$dtRng[1]
-    dt_end <- input$dtRng[2] 
-    ## empty data frame to hold results of loop
-    symData_all <- NULL
+## function to extract only adjusted prices
+sc_extract_adj <- function(symData){
+  #adj <- seq(6, ncol(symData), 6)
+  #symData <- symData[,adj]
+  symData_adj <- symData[, grep("\\.Adjusted$", names(symData))]
+  return(symData_adj)
+}
+## function to get stock prices based on symbols and dates provided
+sc_symdata_fetch <- function(symb_list, dt_start, dt_end){
+  symData_all <- NULL
     ## loop through to get data for each symbol
     for(symbs in sym_list){
       ## show list of all symbols and current symbol for reference
@@ -127,13 +109,70 @@ function(input, output, session) {
     ## show total returns for ref
     cat("total return of first item:", (last(symData_all[,6])[[1]] - first(symData_all[,6])[[1]])/first(symData_all[,6])[[1]],"\n")
     
+    ## extract adjusted prices only since they are of highest interest
+    symdata_all_adj <- sc_extract_adj(symData_all)
     ### save for testing ####
     ## save xts data if needed for testing
     ## - retrieve with code below function
     saveRDS(symData_all, 'data/symData_all.rds')
     
     ## return combined results of each loop (all symbols)
-    symData_all
+    return(list(sym_data_alladj = symdata_all_adj, sym_data_all =symdata_all)) #symData_all
+}
+## end functions ####
+
+## start server ####
+function(input, output, session) {
+  
+  ## Symbols ####
+  ## get symbols for use as inputs
+  ## reactive for accessing symbol info
+  sym_list <- reactive({
+    req(input$txtSym)
+    str_split_1(input$txtSym, " ")
+    print(input$txtSym)
+  })
+  ## PRICES ####
+  ## testing - symbols, dates ####
+  #sym_list <- str_split_1("META AMZN TSLA GOOG", " ")
+  #sym_list <- str_split_1("META", " ")
+  #dt_start <- '2020-01-01'
+  #dt_end <- '2023-05-12'
+  
+  ## get price data ####
+  symData_all <- reactive({
+    req(input$txtSym)
+    ## get symbols and dates from inputs
+    sym_list <- sym_list()
+    print(sym_list)
+    dt_start <- input$dtRng[1]
+    dt_end <- input$dtRng[2] 
+    ## empty data frame to hold results of loop
+    #symData_all <- NULL
+    ## loop through to get data for each symbol
+    #for(symbs in sym_list){
+      ## show list of all symbols and current symbol for reference
+    #  cat(paste0("symbs: ", symbs, "\n"))
+      ## build data as loop cycles
+    #  symData_all <- cbind(symData_all,
+    #                       getSymbols(Symbols=symbs,
+    #                                  from=dt_start, to=dt_end, auto.assign=FALSE, src='yahoo'))
+    #}
+    ## show total returns for ref
+    #cat("total return of first item:", (last(symData_all[,6])[[1]] - first(symData_all[,6])[[1]])/first(symData_all[,6])[[1]],"\n")
+    
+    ## extract adjusted prices only since they are of highest interest
+    #symData_all_adj <- sc_extract_adj(symData_all)
+    ### save for testing ####
+    ## save xts data if needed for testing
+    ## - retrieve with code below function
+    #saveRDS(symData_all, 'data/symData_all.rds')
+    
+    ## return combined results of each loop (all symbols)
+    #return(list(symData_all_adj, symData_all)) #symData_all
+    symData_alladj <- sc_symdata_fetch(sym_list, dt_start, dt_end)
+    symData_alladj <- symData_alla$sym_data_alladj
+    return(symData_alladj)
   })
   
   ## retrieve test data ####
@@ -147,7 +186,7 @@ function(input, output, session) {
       ## > raw or normalized ####
       if(input$mmnorm==FALSE){
         ## actual or normalized - depending on checkbox
-        dygraph(Ad(symData)) %>% dyRangeSelector() %>%
+        dygraph(symData) %>% dyRangeSelector() %>%
           dyAxis("y", axisLabelFormatter = JS("function(d) { 
             if (d >= 1000) {
               return '$' + (d / 1000).toLocaleString('en-US') + 'k';
@@ -156,13 +195,19 @@ function(input, output, session) {
             }
           }"))
       } else {
-        ## calc min-max normalized for better comp
+        ## rebase all symbols to start at $1 for better comparison
         symData <- na.omit(symData)
-        symData_mmn <- xts(apply(symData, 2, function(x) (x-min(x))/(max(x)-min(x))
-                                 ),
+        symData_mmn <- xts(apply(symData, 2, function(x) x/first(x)),
                            order.by=index(symData))
         ## show dygraph with normalized data
-        dygraph(Ad(symData_mmn)) %>% dyRangeSelector()
+        dygraph(symData_mmn) %>% dyRangeSelector()
+        ## replaced with above: calc min-max normalized
+        #symData <- na.omit(symData)
+        #symData_mmn <- xts(apply(symData, 2, function(x) (x-min(x))/(max(x)-min(x))
+        #                         ),
+        #                   order.by=index(symData))
+        ## show dygraph with normalized data
+        #dygraph(Ad(symData_mmn)) %>% dyRangeSelector()
       }
     })
     ## price summary ####
@@ -177,7 +222,7 @@ function(input, output, session) {
       symData <- symData_all()
      # charts.PerformanceSummary(Cl(symData), main="Perf Summ",
       #                          geometric = FALSE, wealth.index=TRUE)
-      chart.Correlation(Ad(symData))
+      chart.Correlation(symData)
     })
     
     ## RETURNS ####

@@ -5,7 +5,7 @@ account: catbird
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 9108143
-bundleId: 10149872
+bundleId: 10185467
 url: https://catbird.shinyapps.io/stock-comparisons/
 asMultiple: FALSE
 asStatic: FALSE

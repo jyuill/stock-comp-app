@@ -43,7 +43,7 @@ fluidPage(
               tags$a(href="https://finance.yahoo.com/lookup/", "Stock symbol lookup", target="_blank"),
               style="font-size: 0.9em; padding-left: 4px;"),
             dateRangeInput(inputId='dtRng', label='Date Range', start='2020-01-01', end='2025-03-31' ) %>% tagAppendAttributes(class='date-box'),
-            checkboxInput(inputId='mmnorm', label="Normalized price comparison?", value=FALSE),
+            checkboxInput(inputId='mmnorm', label="Set initial price to $1", value=FALSE),
             width=3
         ), ## end sidebar panel ####
         ## main panel ####
@@ -53,7 +53,7 @@ fluidPage(
             ## Prices ####
             tabPanel(title='Prices',
               tags$h3("Prices & Correlation"),
-              tags$p("Prices for general context before looking at returns.",tags$em("(click 'Normalized?' at left for scaled comparison)")),
+              tags$p("Prices for general context before looking at returns.",tags$em("(click 'Set initial price to $1' at left for easier comparison)")),
               tags$h4("Prices"),
               dygraphOutput("priceChart"),
               tags$h4("Price Correlations"),
