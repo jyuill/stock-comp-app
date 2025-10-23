@@ -1,0 +1,222 @@
+---
+title: "Sharpe Ratio vs Returns Analysis"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    grid:
+        body-width: 1200px 
+    fig-width: 9
+execute:
+  echo: true
+  warning: false
+  message: false
+params:
+  tickers: 
+    - DFIV
+    - DFAI
+    - DFAX
+    - DFAE
+    - DEHP
+  start_date: "2022-01-01"
+  end_date: null # intended to be Sys.Date() but can't be set in YAML
+  Rf_annual: 0.04
+---
+
+```{r setup, include=FALSE}
+#| echo: false
+#| warning: false
+#| message: false
+# Load necessary libraries
+library(PerformanceAnalytics)
+library(quantmod)
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(tidyquant)
+library(xts)
+library(zoo)
+library(scales)
+```
+
+## Comparison of Sharpe Ratios & Returns for Selected Assets
+
+(Based on code from ChatGPT)
+
+* Sharpe Ratio: A measure of risk-adjusted return, calculated as (Return - Risk-free rate) / Standard Deviation of Return.
+* Useful for comparing performance of different assets considering both return and risk.
+* Higher Sharpe ratios indicate better risk-adjusted performance.
+* Ideally, looking for Sharpe ratio > 1, indicating returns exceed risk by a good margin.
+
+### Set Parameters: symbols, date range, risk-free rate, and frequency.
+
+Parameters are set in the YAML header and can be modified there.
+
+```{r parameters}
+# Define parameters
+# manual version here
+# - parameters moved to YAML header for visibility/editability
+# - quarto does not yet have interactive prompts for parameters like RMarkdown :(
+#tickers    <- c("DFIV","DFAI","DFAX","DFAE", "DEHP")   
+#start_date <- "2022-01-01"
+#end_date   <- ymd(Sys.Date())
+#Rf_annual  <- 0.04     # annual risk-free (set to your preference)
+#Rf_monthly <- Rf_annual / 12
+
+# parameters from YAML
+tickers    <- params$tickers
+start_date <- params$start_date
+# yaml header won't accept Sys.Date(), so handle null case here
+if (is.null(params$end_date)) {
+  end_date <- as.character(ymd(Sys.Date()))
+} else {
+  end_date <- params$end_date
+}
+Rf_annual  <- params$Rf_annual
+Rf_monthly <- Rf_annual / 12
+```
+
+```{r show-params}
+#| echo: false
+
+# Print parameters
+#cat("Tickers: ", paste(tickers, collapse = ", "), "\n")
+#cat("Date range: ", start_date, " to ", end_date, "\n")
+#cat("Annual risk-free rate: ", scales::percent(Rf_annual), "\n")
+
+cat(" Tickers: ", paste(tickers, collapse = ", "), "\n",
+"Date range: ", start_date, " to ", end_date, "\n",
+"Annual risk-free rate: ", scales::percent(Rf_annual), "\n")
+```
+
+### Get Prices and Calculate Returns
+
+* Get adjusted closing prices for the selected tickers (xts format).
+* Sharpe ratios - annualized based on monthly returns.
+* Annualized returns and volatility (PerformanceAnalytics).
+
+```{r returns}
+returns_xts <- tq_get(tickers, from = start_date, to = end_date, get = "stock.prices") %>%
+  group_by(symbol) %>%
+  tq_transmute(select = adjusted,
+               mutate_fun = periodReturn,
+               period = "monthly",
+               type = "log",        # use "arithmetic" if preferred
+               col_rename = "ret") %>%
+  ungroup() %>%
+  tidyr::pivot_wider(names_from = symbol, values_from = ret) %>%
+  arrange(date) %>%
+  { xts::as.xts(dplyr::select(., -date), order.by = .$date) }
+
+# ---- Sharpe ratios (annualized) & summary stats ----
+# Annualized Sharpe using monthly data (scale = 12)
+sharpe_ann_xts <- SharpeRatio.annualized(returns_xts, Rf = Rf_monthly, scale = 12)
+
+# Annualized return/vol via PerformanceAnalytics
+ann_tbl <- PerformanceAnalytics::table.AnnualizedReturns(returns_xts, Rf = Rf_monthly, scale = 12)
+# Convert to a tidy tibble
+metrics <- ann_tbl %>%
+  data.frame(check.names = FALSE) %>%
+  rownames_to_column(var = "Metric") %>%
+  pivot_longer(-Metric, names_to = "symbol", values_to = "value") %>%
+  pivot_wider(names_from = Metric, values_from = value) %>%
+  # simplify column names and arrange by Sharpe
+   rename(ann_return = `Annualized Return`,
+          ann_vol    = `Annualized Std Dev`,
+          sharpe_ann = contains("Sharpe")) %>%
+  arrange(desc(sharpe_ann))
+```
+
+### Display Calculated Metrics
+
+```{r metrics}
+print(metrics)
+```
+
+### Overall Returns Summary
+
+```{r summary}
+# ---- Optional: combine with other performance metrics ----
+charts.PerformanceSummary(returns_xts,
+                          Rf = Rf_monthly,
+                          main = "Returns and Risk Metrics")
+```
+
+### Visualize Annualized Sharpe Ratios
+
+#### Annualized Sharpe Ratio Bar Chart
+
+```{r}
+# ---- Plot 1: Bar chart of annualized Sharpe ----
+p_sharpe <- metrics %>%
+  mutate(symbol = fct_reorder(symbol, sharpe_ann)) %>%
+  ggplot(aes(symbol, sharpe_ann)) +
+  geom_col(width = 0.6) +
+  geom_text(aes(label = round(sharpe_ann, 2)), vjust = -0.4, size = 3.8) +
+  labs(title = "Annualized Sharpe Ratio (monthly data, scale = 12)",
+       subtitle = paste0("Risk-free (annual): ", scales::percent(Rf_annual),
+                         " • Period: ", format(start(returns_xts), "%Y-%m"), " → ",
+                         format(end(returns_xts), "%Y-%m")),
+       x = NULL, y = "Sharpe (annualized)") +
+  theme_minimal(base_size = 12)
+print(p_sharpe)
+```
+
+#### Annualized Return vs. Volatility Scatter Plot
+
+```{r}
+#| fig-asp: 1
+# ---- Plot 2: Risk–Return with each asset’s Sharpe line (facet per symbol) ----
+# Build Sharpe lines: for each symbol, line is Return = Rf + Sharpe * Vol
+max_vol <- max(metrics$ann_vol, na.rm = TRUE)
+vol_grid <- seq(0, max(0.25, max_vol * 1.2), by = 0.002)
+
+line_df <- metrics %>%
+  select(symbol, sharpe_ann) %>%
+  mutate(Rf = Rf_annual) %>%
+  tidyr::crossing(vol = vol_grid) %>%
+  mutate(ret = Rf + sharpe_ann * vol)
+
+points_df <- metrics %>% select(symbol, ann_return, ann_vol, sharpe_ann)
+
+p_rr <- ggplot() +
+  geom_line(data = line_df, aes(x = vol, y = ret), size = 1) +
+  geom_point(data = points_df, aes(x = ann_vol, y = ann_return), size = 2) +
+  geom_text(data = points_df,
+            aes(x = ann_vol, y = ann_return,
+                label = paste0(" Vol=", percent(ann_vol, 0.1),
+                               ", Ret=", percent(ann_return, 0.1),
+                               "\nSharpe=", round(sharpe_ann, 2))),
+            hjust = 0.08, vjust = -0.6, size = 3.1) +
+  geom_hline(yintercept = Rf_annual, linetype = "dashed") +
+  facet_wrap(~ symbol, ncol = 2, scales = "free_x") +
+  scale_x_continuous(labels = percent_format(accuracy = 1)) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(title = "Risk–Return Efficiency: Sharpe Lines by Asset",
+       subtitle = paste0("Each line passes through the risk-free rate (", percent(Rf_annual),
+                         ") with slope = asset’s annualized Sharpe"),
+       x = "Volatility (annualized σ)", y = "Return (annualized)") +
+  theme_minimal(base_size = 12)
+print(p_rr)
+```
+
+### Rolling Sharpe Ratio Calculation and Visualization
+
+```{r}
+# ---- Optional: Rolling Sharpe (annualized) ----
+roll_n <- 36
+chart.RollingPerformance(
+  R    = returns_xts,
+  width = roll_n,
+  FUN   = "SharpeRatio.annualized",
+  Rf    = Rf_monthly,
+  scale = 12,
+  main  = paste0("Rolling ", roll_n, "-Month Sharpe (Annualized)"),
+  legend.loc = "topleft",
+  na.pad = TRUE
+)
+abline(h = 1, lty = 2)
+```
